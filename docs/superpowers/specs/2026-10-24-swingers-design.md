@@ -25,8 +25,8 @@ timing invariato al tick, sia nel plugin sia nel file salvato.
 Il prototipo del 2018 (4 commit, circa 340 righe: proton-native, Babel 6, `midiconvert`, `xml2js`) non è recuperabile:
 librerie abbandonate, timing perso nella conversione (la libreria passava per i secondi), crash sulle note non mappate,
 mappe di arrivo con più note sulla stessa voce GM che si sovrascrivevano, file d'origine modificato, GUI incompleta. Si
-riscrive da zero; dal prototipo si tengono l'idea del General MIDI come tappa intermedia e le tre mappe XML di Cubase in
-`maps/`.
+riscrive da zero; dal prototipo si tiene solo l'idea del General MIDI come tappa intermedia. Le vecchie mappe XML di
+`maps/` non si usano (deciso dall'utente il 2026-10-24): le mappe si rifanno nuove con l'editor, e saranno molte.
 
 ## 3. Decisioni prese
 
@@ -93,11 +93,13 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 
 - Formato proprio: **un file JSON per mappa** (`<id>.swmap.json`) con nome, libreria e le note usate; **un file JSON per
   coppia con eccezioni** (`<idA>__<idB>.swpair.json`).
-- Mappe incluse: General MIDI, Addictive Drums 2, SDX Metal Foundry (dalle tre XML di `maps/`, convertite e controllate).
+- Mappe incluse nella prima versione: solo **General MIDI** (note 35-81 con i nomi dello standard), scritta da zero. Le
+  mappe delle librerie si creano nuove con l'editor (decisione dell'utente del 2026-10-24).
 - Cartella dell'utente: `Documents/Swingers/` con `maps/` e `pairs/`, la stessa per plugin e standalone.
 - Import da Cubase: dall'XML si prendono nome della mappa, e per ogni voce `INote` (nota), nome e `ONote` (voce GM
-  proposta); le voci senza nome o con nome `---` restano senza voce GM. L'import crea una mappa JSON nella cartella
-  dell'utente, poi rivedibile nell'editor.
+  proposta); le voci senza nome, con nome `---` o con `ONote` 0 restano senza voce GM. L'import tollera gli XML che
+  Cubase produce con `<`, `>` o `&` non escapati dentro i nomi (es. `[Ride ><]`). L'import crea una mappa JSON nella
+  cartella dell'utente, poi rivedibile nell'editor.
 
 ## 5. Interfaccia
 
@@ -137,13 +139,14 @@ Il codice nuovo nasce con un test che prima fallisce.
   nota intatti).
 - **File:** un MIDI convertito ha gli stessi eventi negli stessi tick, con lo stesso formato e la stessa risoluzione; cambiano
   solo i numeri di nota e mancano solo le note scartate.
-- **Import Cubase:** le tre mappe di `maps/` si leggono con note, nomi e voci GM attese.
+- **Import Cubase:** piccoli XML di prova (nome, note con e senza voce GM, `---`, `ONote` 0, caratteri non escapati)
+  si leggono con note, nomi e voci GM attese.
 - **Plugin:** validatore VST3 di Steinberg, `auval` (AU, su Mac), `clap-validator`.
 
 ## 8. Prima versione e fuori campo
 
 **Prima versione:** plugin VST3, AU MIDI FX e CLAP; standalone con conversione di file; patchbay con eccezioni di coppia;
-editor delle mappe; import da Cubase; tre mappe incluse.
+editor delle mappe; import da Cubase; mappa General MIDI inclusa.
 
 **Fuori dalla prima versione:** Ableton Live (non fa uscire il MIDI dai plugin VST3/AU: servirebbe un dispositivo Max for
 Live che legga le stesse mappe), export verso Cubase, varianti numerate di una stessa voce GM (open 1/2/3), altri formati
