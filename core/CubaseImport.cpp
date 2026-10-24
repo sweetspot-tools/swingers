@@ -1,76 +1,90 @@
 #include "CubaseImport.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <string>
 
 namespace swingers
 {
 namespace
 {
-bool startsEntity (const juce::String& text, int pos)
+// All characters examined here are ASCII, and UTF-8 multi-byte sequences never contain ASCII bytes,
+// so the pre-pass works on raw bytes: one linear walk, no String indexing.
+bool startsWith (const std::string& s, size_t pos, const char* prefix)
+{
+    return s.compare (pos, std::strlen (prefix), prefix) == 0;
+}
+
+bool startsEntity (const std::string& s, size_t pos)
 {
     static const char* const entities[] = { "&lt;", "&gt;", "&amp;", "&quot;", "&apos;" };
     for (auto* e : entities)
-        if (text.substring (pos).startsWith (e))
+        if (startsWith (s, pos, e))
             return true;
 
-    if (text[pos + 1] != '#')
+    if (pos + 1 >= s.size() || s[pos + 1] != '#')
         return false;
 
     auto i = pos + 2;
-    if (text[i] == 'x' || text[i] == 'X')
+    const bool hex = i < s.size() && (s[i] == 'x' || s[i] == 'X');
+    if (hex)
         ++i;
 
     const auto digitsStart = i;
-    while (juce::CharacterFunctions::getHexDigitValue (text[i]) >= 0)
+    while (i < s.size() && (hex ? std::isxdigit ((unsigned char) s[i]) : std::isdigit ((unsigned char) s[i])))
         ++i;
 
-    return i > digitsStart && text[i] == ';';
+    return i > digitsStart && i < s.size() && s[i] == ';';
 }
 
 // Cubase writes names such as `[Ride ><] *Ride Tip` or `Bell & Tip` without escaping them. Inside double-quoted
 // attribute values, escape `<`, `>` and any `&` that does not already open an entity. Comments are left alone.
 juce::String escapeAttributeValues (const juce::String& text)
 {
-    juce::String out;
-    out.preallocateBytes ((size_t) text.length() + 64);
+    const std::string in (text.toRawUTF8());
+    std::string out;
+    out.reserve (in.size() + in.size() / 8 + 64);
 
     bool inTag = false, inValue = false;
-    const auto length = text.length();
 
-    for (int i = 0; i < length; ++i)
+    for (size_t i = 0; i < in.size(); ++i)
     {
-        const auto c = text[i];
+        const char c = in[i];
 
         if (! inTag)
         {
             if (c == '<')
             {
-                if (text.substring (i).startsWith ("<!--"))
+                if (startsWith (in, i, "<!--"))
                 {
-                    const auto end = text.indexOf (i + 4, "-->");
-                    const auto stop = end < 0 ? length : end + 3;
-                    out << text.substring (i, stop);
+                    const auto end = in.find ("-->", i + 4);
+                    const auto stop = end == std::string::npos ? in.size() : end + 3;
+                    out.append (in, i, stop - i);
                     i = stop - 1;
                     continue;
                 }
                 inTag = true;
             }
-            out << c;
+            out += c;
             continue;
         }
 
         if (inValue)
         {
             if (c == '"')
-                inValue = false, out << c;
+            {
+                inValue = false;
+                out += c;
+            }
             else if (c == '<')
-                out << "&lt;";
+                out += "&lt;";
             else if (c == '>')
-                out << "&gt;";
-            else if (c == '&' && ! startsEntity (text, i))
-                out << "&amp;";
+                out += "&gt;";
+            else if (c == '&' && ! startsEntity (in, i))
+                out += "&amp;";
             else
-                out << c;
+                out += c;
             continue;
         }
 
@@ -79,10 +93,10 @@ juce::String escapeAttributeValues (const juce::String& text)
         else if (c == '>')
             inTag = false;
 
-        out << c;
+        out += c;
     }
 
-    return out;
+    return juce::String::fromUTF8 (out.data(), (int) out.size());
 }
 
 juce::String slugOf (const juce::String& name)
@@ -114,10 +128,14 @@ bool childValue (const juce::XmlElement& parent, const char* tag, const char* ke
 bool noteChild (const juce::XmlElement& item, const char* key, int& note)
 {
     juce::String v;
-    if (! childValue (item, "int", key, v) || ! v.trim().containsOnly ("0123456789") || v.trim().isEmpty())
+    if (! childValue (item, "int", key, v))
         return false;
 
-    note = v.trim().getIntValue();
+    v = v.trim();
+    if (v.isEmpty() || v.length() > 3 || ! v.containsOnly ("0123456789"))
+        return false;
+
+    note = v.getIntValue();
     return note >= 0 && note <= 127;
 }
 } // namespace
@@ -149,7 +167,10 @@ std::optional<DrumMap> importCubaseDrumMap (const juce::String& xmlText, juce::S
     const juce::XmlElement* list = nullptr;
     for (auto* e : doc->getChildWithTagNameIterator ("list"))
         if (e->getStringAttribute ("name") == "Map")
+        {
             list = e;
+            break;
+        }
 
     if (list == nullptr)
     {
