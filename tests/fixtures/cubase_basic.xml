@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DrumMap>
+  <string name="Name" value="Test Kit"/>
+  <list name="Map" type="list">
+    <item>
+      <int name="INote" value="36"/>
+      <int name="ONote" value="36"/>
+      <string name="Name" value="Kick"/>
+    </item>
+    <item>
+      <int name="INote" value="38"/>
+      <int name="ONote" value="38"/>
+      <string name="Name" value="Snare"/>
+    </item>
+    <item>
+      <int name="INote" value="40"/>
+      <int name="ONote" value="38"/>
+      <string name="Name" value="Snare Rim"/>
+    </item>
+    <item>
+      <int name="INote" value="47"/>
+      <int name="ONote" value="0"/>
+      <string name="Name" value="Xtra A"/>
+    </item>
+    <item>
+      <int name="INote" value="50"/>
+      <int name="ONote" value="50"/>
+      <string name="Name" value="---"/>
+    </item>
+    <item>
+      <int name="INote" value="51"/>
+      <int name="ONote" value="51"/>
+      <string name="Name" value=""/>
+    </item>
+  </list>
+</DrumMap>

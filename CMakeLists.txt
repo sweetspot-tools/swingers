@@ -17,7 +17,9 @@ endif()
 
 # Pure engine: sources under core/ are added here by later tasks.
 add_library(swingers_core INTERFACE)
-target_sources(swingers_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core/DrumMap.cpp)
+target_sources(swingers_core INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/DrumMap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/CubaseImport.cpp)
 target_link_libraries(swingers_core INTERFACE
     juce::juce_core
     juce::juce_audio_basics)
@@ -71,11 +73,13 @@ juce_add_console_app(swingers_tests
 target_sources(swingers_tests PRIVATE
     tests/test_smoke.cpp
     tests/test_drum_map.cpp
+    tests/test_cubase_import.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(swingers_tests PRIVATE plugin)
 
 target_compile_definitions(swingers_tests PRIVATE
+    SWINGERS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0)
 

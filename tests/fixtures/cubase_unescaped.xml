@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DrumMap>
+  <string name="Name" value="Odd Kit"/>
+  <list name="Map" type="list">
+    <item>
+      <int name="INote" value="84"/>
+      <int name="ONote" value="51"/>
+      <string name="Name" value="[Ride ><] *Ride Tip"/>
+    </item>
+    <item>
+      <int name="INote" value="85"/>
+      <int name="ONote" value="51"/>
+      <string name="Name" value="Bell & Tip"/>
+    </item>
+  </list>
+</DrumMap>
