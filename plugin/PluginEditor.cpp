@@ -3,7 +3,7 @@
 namespace swingers
 {
 SwingersEditor::SwingersEditor (SwingersProcessor& p)
-    : juce::AudioProcessorEditor (p), processor (p), compact (p), patchbay (p), mapEditor (p)
+    : juce::AudioProcessorEditor (p), processor (p), compact (p), patchbay (p), mapEditor (p), fileBar (p)
 {
     setLookAndFeel (&lookAndFeel);
     setResizable (false, false);
@@ -12,15 +12,19 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     addAndMakeVisible (compact);
     addChildComponent (patchbay);
     addChildComponent (mapEditor);
+    addChildComponent (fileBar);
     addAndMakeVisible (wearTape);
     wearBackground.setComponentID ("wearBackground");
     wearTape.setComponentID ("wearTape");
     wearBackground.setSeed (processor.wearSeed());
     wearTape.setSeed (processor.wearSeed());
-    setWearKeepClear (CompactPanel::wearKeepClear());
+    fileBarShown = processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
+    fileBar.setVisible (fileBarShown);
+    setWearKeepClear (compactKeepClear());
     compact.setComponentID ("compactPanel");
     patchbay.setComponentID ("patchbayView");
     mapEditor.setComponentID ("mapEditorView");
+    fileBar.setComponentID ("fileBar");
     compact.onEditMapping = [this] { showPatchbay (true); };
     patchbay.onDone = [this] { showPatchbay (false); };
     patchbay.setEditMapsHandler ([this] { showMapEditor (true); });
@@ -39,7 +43,7 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
         wearTape.setSeed (processor.wearSeed());
     };
 
-    setSize (CompactPanel::kWidth, CompactPanel::kHeight);
+    setSize (CompactPanel::kWidth, compactHeight());
 
     // The previous editor window was closed with unsaved map edits: come back to them.
     if (auto draft = processor.takeMapDraft())
@@ -77,6 +81,7 @@ void SwingersEditor::applyPatchbay (bool show)
     mapEditorShown = false;
     mapEditor.setVisible (false);
     compact.setVisible (! show);
+    fileBar.setVisible (! show && fileBarShown);
     patchbay.setVisible (show);
     if (show)
     {
@@ -86,9 +91,30 @@ void SwingersEditor::applyPatchbay (bool show)
     }
     else
     {
-        setWearKeepClear (CompactPanel::wearKeepClear());
-        setSize (CompactPanel::kWidth, CompactPanel::kHeight);
+        setWearKeepClear (compactKeepClear());
+        setSize (CompactPanel::kWidth, compactHeight());
     }
+}
+
+std::vector<juce::Rectangle<int>> SwingersEditor::compactKeepClear() const
+{
+    auto rectangles = CompactPanel::wearKeepClear();
+    if (fileBarShown)
+        for (const auto& r : FileBar::wearKeepClear())
+            rectangles.push_back (r);
+    return rectangles;
+}
+
+void SwingersEditor::setFileBarShown (bool show)
+{
+    if (fileBarShown == show)
+        return;
+    fileBarShown = show;
+    if (patchbayShown || mapEditorShown)
+        return; // applies when the compact view comes back
+    fileBar.setVisible (show);
+    setWearKeepClear (compactKeepClear());
+    setSize (CompactPanel::kWidth, compactHeight());
 }
 
 void SwingersEditor::showMapEditor (bool show)
@@ -110,6 +136,7 @@ void SwingersEditor::enterMapEditor()
     patchbayShown = false;
     mapEditorShown = true;
     compact.setVisible (false);
+    fileBar.setVisible (false);
     patchbay.setVisible (false);
     mapEditor.setVisible (true);
     setWearKeepClear (MapEditorView::wearKeepClear());
@@ -129,5 +156,6 @@ void SwingersEditor::resized()
     compact.setBounds (0, 0, CompactPanel::kWidth, CompactPanel::kHeight);
     patchbay.setBounds (0, 0, PatchbayView::kWidth, PatchbayView::kHeight);
     mapEditor.setBounds (0, 0, MapEditorView::kWidth, MapEditorView::kHeight);
+    fileBar.setBounds (0, 0, FileBar::kWidth, FileBar::kHeight);
 }
 } // namespace swingers

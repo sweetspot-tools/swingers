@@ -1,8 +1,11 @@
-// Renders the plugin editor to a PNG: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor]
+// Renders the plugin editor to a PNG: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]
 // Uses a throw-away user root with one extra map and one broken file, so the lists show both.
 // --patchbay renders the "Edit mapping" view instead, with the preview's example: two user maps, one direct
 // cable (40 -> 33) and one disconnected note (37); --all-notes shows all 128 rows, --lit lights note 36.
 // --map-editor renders "Edit maps" on the preview's Metal Kit.
+// --standalone renders the standalone layout (compact panel, file bar and report) after converting a generated
+// MIDI file with the preview's example: 412 notes converted, Splash FX (61) dropped three times, then saved.
+#include "FileBar.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
@@ -40,19 +43,52 @@ void writePatchbayMaps (swingers::MapLibrary& writer)
                                { 52, "China", 52, false }, { 53, "Ride Bell", 53, false },
                                { 57, "Crash 2", 57, false } }));
 }
+
+// A one-track drum file named like the preview's: 412 notes the pair converts and three Splash FX (61).
+juce::File writeExampleMidi (const juce::File& folder)
+{
+    juce::MidiMessageSequence track;
+    const int notes[] = { 36, 38, 42, 46 };
+    for (int i = 0; i < 412; ++i)
+    {
+        auto on = juce::MidiMessage::noteOn (10, notes[i % 4], (juce::uint8) 100);
+        on.setTimeStamp (i * 240.0);
+        auto off = juce::MidiMessage::noteOff (10, notes[i % 4]);
+        off.setTimeStamp (i * 240.0 + 100.0);
+        track.addEvent (on);
+        track.addEvent (off);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        auto on = juce::MidiMessage::noteOn (10, 61, (juce::uint8) 100);
+        on.setTimeStamp (50.0 + i * 960.0);
+        auto off = juce::MidiMessage::noteOff (10, 61);
+        off.setTimeStamp (90.0 + i * 960.0);
+        track.addEvent (on);
+        track.addEvent (off);
+    }
+    juce::MidiFile file;
+    file.setTicksPerQuarterNote (480);
+    file.addTrack (track);
+
+    const auto path = folder.getChildFile ("groove_verse.mid");
+    juce::FileOutputStream stream (path);
+    file.writeTo (stream, 1);
+    return path;
+}
 } // namespace
 
 int main (int argc, char** argv)
 {
     if (argc < 2)
     {
-        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor]\n");
+        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]\n");
         return 2;
     }
 
     juce::ScopedJuceInitialiser_GUI gui;
     float scale = 2.0f;
-    bool patchbay = false, allNotes = false, lit = false, mapEditor = false;
+    bool patchbay = false, allNotes = false, lit = false, mapEditor = false, standalone = false;
     for (int i = 2; i < argc; ++i)
     {
         const juce::String arg (argv[i]);
@@ -64,6 +100,8 @@ int main (int argc, char** argv)
             lit = true;
         else if (arg == "--map-editor")
             mapEditor = true;
+        else if (arg == "--standalone")
+            standalone = true;
         else
             scale = arg.getFloatValue();
     }
@@ -80,13 +118,13 @@ int main (int argc, char** argv)
         {
             swingers::MapLibrary writer (root);
             writer.saveMap (map);
-            if (patchbay || mapEditor)
+            if (patchbay || mapEditor || standalone)
                 writePatchbayMaps (writer);
         }
         root.getChildFile ("maps/broken.swmap.json").replaceWithText ("{ not json");
 
         swingers::SwingersProcessor processor (root);
-        if (mapEditor)
+        if (mapEditor || standalone)
         {
             processor.selectMaps ("studio-kit", "metal-kit");
         }
@@ -120,7 +158,19 @@ int main (int argc, char** argv)
         juce::MidiBuffer midi;
         midi.addEvent (juce::MidiMessage::noteOn (10, 36, (juce::uint8) 100), 0);
 
-        if (mapEditor && swingersEditor != nullptr)
+        if (standalone && swingersEditor != nullptr)
+        {
+            swingersEditor->setFileBarShown (true);
+            auto& bar = swingersEditor->fileBarView();
+            const auto input = writeExampleMidi (root);
+            if (! bar.loadFile (input) || ! bar.convert() || ! bar.saveTo (bar.suggestedOutput()))
+            {
+                std::fprintf (stderr, "example conversion failed\n");
+                exitCode = 1;
+            }
+            swingersEditor->compactPanel().pollActivity (0);
+        }
+        else if (mapEditor && swingersEditor != nullptr)
         {
             swingersEditor->showMapEditor (true);
         }
