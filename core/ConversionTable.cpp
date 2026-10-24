@@ -27,6 +27,9 @@ ConversionTable ConversionTable::build (const DrumMap& from, const DrumMap& to, 
     }
 
     ConversionTable table;
+    // A to A: every note to itself (the GM pivot would merge notes on the same voice and drop notes
+    // without a voice); pair overrides still apply on top.
+    const bool sameMap = from.id == to.id;
 
     for (int note = 0; note < 128; ++note)
     {
@@ -50,7 +53,12 @@ ConversionTable ConversionTable::build (const DrumMap& from, const DrumMap& to, 
             }
         }
 
-        if (e.gm >= 0 && e.gm <= 127)
+        if (sameMap)
+        {
+            e.target = note;
+            e.route = Route::Standard;
+        }
+        else if (e.gm >= 0 && e.gm <= 127)
         {
             const int target = lowestPreferred[(size_t) e.gm] >= 0 ? lowestPreferred[(size_t) e.gm] : lowest[(size_t) e.gm];
             if (target >= 0)

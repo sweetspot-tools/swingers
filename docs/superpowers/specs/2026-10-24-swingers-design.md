@@ -74,7 +74,9 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
      la prima per numero di nota;
   3. altrimenti scartata (*nessuna corrispondenza*).
   
-  Se A o B è la mappa GM, la voce GM della nota GM è la nota stessa.
+  Se A o B è la mappa GM, la voce GM della nota GM è la nota stessa. **Se A e B sono la stessa mappa (stesso id)** la
+  regola 2 è l'identità: ogni nota va su sé stessa (anche le note senza voce GM e le note diverse con la stessa voce),
+  poi si applicano le eccezioni della coppia; così GM → GM non scarta le note fuori da 35-81.
 - **`LiveRemapper`** (tempo reale): applica la tabella a note-on, note-off e aftertouch polifonico del canale scelto
   (predefinito: tutti). Ricorda per ogni nota accesa (canale, nota d'ingresso) dove è stata mandata, così il note-off va
   alla nota giusta anche se nel frattempo cambiano le mappe. Tutto il resto (CC, pitch bend, program change, clock, SysEx,

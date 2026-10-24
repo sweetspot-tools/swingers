@@ -24,7 +24,8 @@ struct ConversionTable
 
     // Order per note: direct override, dropped by the user, GM voice of the source note
     // (target: the preferred note of that voice, the lowest preferred if several, else the lowest note),
-    // otherwise no match.
+    // otherwise no match. When from.id == to.id the standard route is the identity (every note to itself),
+    // with the pair overrides applied on top.
     static ConversionTable build (const DrumMap& from, const DrumMap& to, const PairOverrides* overrides);
 
     // Every note to itself, Route::Standard, gm = the note.

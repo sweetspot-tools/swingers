@@ -11,8 +11,10 @@ namespace
 {
 DrumMap makeMap (std::vector<MapNote> notes)
 {
+    // A distinct id per map: the same id on both sides means "A to A" (the identity).
+    static int counter = 0;
     DrumMap map;
-    map.id = "m";
+    map.id = "m" + juce::String (++counter);
     map.name = "M";
     map.notes = std::move (notes);
     return map;
@@ -149,6 +151,38 @@ TEST_CASE ("GM map on either side")
     const auto table = ConversionTable::build (fromCustom, gm, nullptr);
     CHECK (table.entries[23].target == 46);
     CHECK (table.entries[23].route == Route::Standard);
+}
+
+TEST_CASE ("the same map on both sides is the identity, pair overrides still apply")
+{
+    const auto gm = bundledGm();
+    const auto gmToGm = ConversionTable::build (gm, gm, nullptr);
+    for (int note = 0; note < 128; ++note)
+    {
+        CHECK (gmToGm.entries[(size_t) note].target == note);
+        CHECK (gmToGm.entries[(size_t) note].route == Route::Standard);
+    }
+    CHECK (gmToGm.entries[22].target == 22); // outside the GM range 35-81
+    CHECK (gmToGm.entries[90].target == 90);
+    CHECK (gmToGm.entries[38].gm == 38);
+
+    // Two notes on the same GM voice stay distinct (through the pivot both would go to the lowest).
+    auto custom = makeMap ({ { 37, "Snare A", 38, false }, { 40, "Snare B", 38, false } });
+    const auto aToA = ConversionTable::build (custom, custom, nullptr);
+    CHECK (aToA.entries[37].target == 37);
+    CHECK (aToA.entries[40].target == 40);
+    CHECK (aToA.entries[40].gm == 38);
+
+    PairOverrides overrides;
+    overrides.fromId = overrides.toId = custom.id;
+    overrides.connect (40, 41);
+    overrides.drop (37);
+    const auto withOverrides = ConversionTable::build (custom, custom, &overrides);
+    CHECK (withOverrides.entries[40].target == 41);
+    CHECK (withOverrides.entries[40].route == Route::Override);
+    CHECK (withOverrides.entries[37].route == Route::DroppedByUser);
+    CHECK (withOverrides.entries[37].target == -1);
+    CHECK (withOverrides.entries[60].target == 60);
 }
 
 TEST_CASE ("identity")
