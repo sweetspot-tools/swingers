@@ -240,6 +240,46 @@ TEST_CASE ("wear: the processor creates a seed once and keeps it in the project"
     root.deleteRecursively();
 }
 
+TEST_CASE ("wear: the tape shadow is soft: black at half opacity, offset 0.8 / 1.6, lightly blurred")
+{
+    juce::Image image (juce::Image::ARGB, 60, 40, true);
+    {
+        juce::Graphics g (image);
+        juce::Path strip;
+        strip.addRectangle (10.0f, 10.0f, 30.0f, 12.0f); // centre (25, 16)
+        drawTapeShadow (g, strip);
+    }
+
+    int peak = 0;
+    double sum = 0.0, sx = 0.0, sy = 0.0;
+    bool black = true;
+    for (int y = 0; y < image.getHeight(); ++y)
+        for (int x = 0; x < image.getWidth(); ++x)
+        {
+            const auto c = image.getPixelAt (x, y);
+            const int a = c.getAlpha();
+            peak = std::max (peak, a);
+            sum += a;
+            sx += a * (x + 0.5);
+            sy += a * (y + 0.5);
+            black = black && (a == 0 || (c.getRed() == 0 && c.getGreen() == 0 && c.getBlue() == 0));
+        }
+
+    REQUIRE (sum > 0.0);
+    CHECK (black);
+    CHECK (peak >= 120); // 0.5 opacity
+    CHECK (peak <= 135);
+    CHECK (std::abs (sx / sum - 25.0 - 0.8) < 0.25);
+    CHECK (std::abs (sy / sum - 16.0 - 1.6) < 0.25);
+
+    // Soft edges: across the middle row the shadow fades over more than the two antialiased pixels of a hard edge.
+    int partial = 0;
+    for (int x = 0; x < image.getWidth(); ++x)
+        if (const int a = image.getPixelAt (x, 17).getAlpha(); a > 0 && a < peak * 9 / 10)
+            ++partial;
+    CHECK (partial >= 4);
+}
+
 TEST_CASE ("wear layers draw something and never take mouse clicks")
 {
     juce::ScopedJuceInitialiser_GUI gui;

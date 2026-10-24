@@ -151,7 +151,9 @@ allarga); standalone 520 × 330 con riquadri FILE e REPORT.
 
 **Usura come nei Fairy Tapes** (richiesta dell'utente del 2026-10-24): grana fine del pannello, graffi chiari, macchie opache
 a bordo netto, pezzi di nastro di carta scritti a mano (Homemade Apple, Apache-2.0, incluso nel plugin) con residui di
-colla, viti agli angoli. Tutto da un seme salvato nel progetto; nastro e macchie non coprono mai i controlli e nessun
+colla, viti agli angoli. Il nastro ha un'ombra morbida come nella preview di The Stripper (`stripper_rack.html`): nera al
+50 %, spostata di 0,8 / 1,6 px, sfocatura leggera (deciso nella revisione finale: il "niente ombre" dei Fairy Tapes
+riguarda le macchie). Tutto da un seme salvato nel progetto; nastro e macchie non coprono mai i controlli e nessun
 elemento dell'usura cattura i clic. Nella prima versione l'intensità è fissa (scelta Off/Light/Heavy: decisione aperta). I generatori sono per categoria, ognuno
 con il proprio flusso casuale, così un elemento non sposta gli altri. Un cambio di seme avvisa il host.
 
@@ -227,7 +229,6 @@ di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 - Come si distribuiscono i binari (firma e notarizzazione su Mac, installer): da decidere prima del primo rilascio.
 - Font stretto incorporato per il testo serigrafato: oggi si usa il sans di sistema (Liberation Sans Bold su Linux), che
   cambia da un sistema operativo all'altro, quindi larghezze e resa del testo non sono identiche ovunque.
-- Ombra del nastro di carta: ha un'ombra netta, ma il DESIGN_SYSTEM dei Fairy Tapes dice "niente ombre". Tenerla o toglierla.
 - Dispositivo Max for Live per Ableton Live (fuori dalla prima versione, vedi §8).
 - Prova negli host reali (Cubase, Reaper, Studio One, Bitwig, FL Studio, Logic) e validazione di CLAP e AU.
 

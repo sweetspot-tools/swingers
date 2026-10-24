@@ -11,7 +11,7 @@ constexpr float kScrewInset = 12.0f;
 constexpr float kScrewSize = 11.2f;
 constexpr float kTapeEndMargin = 6.0f; // torn ends and glue residue stick out this far horizontally
 constexpr float kTapeEdgeMargin = 1.6f;
-constexpr float kTapeShadow = 1.5f;
+constexpr float kTapeShadow = 3.5f; // shadow offset 1.6 below the torn edge, plus its blur
 
 float rnd (juce::Random& r, float lo, float hi) { return lo + r.nextFloat() * (hi - lo); }
 

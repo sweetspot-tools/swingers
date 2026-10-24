@@ -12,6 +12,10 @@ namespace swingers
 // control (panel colour, fine grain, scratches, stains, screws), the Tape layer sits above them (paper
 // strips with handwriting and glue, kept clear of the controls). Neither layer takes mouse clicks.
 // The picture is cached in an image, rebuilt only on resize, new seed, new keep-clear list or new pixel scale.
+// The soft shadow under a tape piece (black, 50 %, offset 0.8 / 1.6, light blur), drawn before its paper
+// (outline in the strip's own coordinates).
+void drawTapeShadow (juce::Graphics&, const juce::Path& outline);
+
 class WearLayer : public juce::Component
 {
 public:

@@ -156,9 +156,8 @@ void drawTapeBody (juce::Graphics& g, const WearItem& item)
                         .rotated (juce::degreesToRadians (item.angle), item.bounds.getCentreX(),
                                   item.bounds.getCentreY()));
 
-    // Hard shadow (no blur), then the paper, then fibres.
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.fillPath (outline, juce::AffineTransform::translation (0.8f, 1.2f));
+    // Shadow, then the paper, then fibres.
+    drawTapeShadow (g, outline);
     g.setColour (kPaper.withAlpha (0.93f));
     g.fillPath (outline);
 
@@ -297,6 +296,16 @@ void WearLayer::rebuild (float scale)
     for (const auto& item : items)
         if (item.kind == WearKind::Tape)
             drawTapeText (g, item, tapeTypeface);
+}
+
+void drawTapeShadow (juce::Graphics& g, const juce::Path& outline)
+{
+    // As in the Fairy Tapes preview (stripper_rack.html): black at 50 %, offset (0.8, 1.6), a light blur
+    // (feGaussianBlur 0.6 there; the smallest DropShadow radius here). DropShadow takes an integer offset, so the
+    // path is moved instead.
+    auto moved = outline;
+    moved.applyTransform (juce::AffineTransform::translation (0.8f, 1.6f));
+    juce::DropShadow (juce::Colours::black.withAlpha (0.5f), 1, {}).drawForPath (g, moved);
 }
 
 void WearLayer::paint (juce::Graphics& g)
