@@ -28,8 +28,10 @@ public:
     ~PatchbayView() override;
 
     std::function<void()> onDone;
-    std::function<void()> onEditMaps;       // Task 11; the button looks disabled while this is empty
     std::function<void()> onLayoutChanged;  // the boxes changed height: the editor re-reads wearKeepClear()
+
+    // Task 11: what EDIT MAPS does. The button looks disabled while there is no handler.
+    void setEditMapsHandler (std::function<void()>);
 
     // Rebuilds the model from the processor's current maps and exceptions.
     void refresh();
@@ -50,6 +52,7 @@ public:
     // Rows and the canvas, for tests: bounds are in canvas coordinates (the scrolled content).
     juce::Component& canvas();
     juce::Viewport& viewport() { return scroller; }
+    int gmPillCentreY (int voice) const;                   // canvas y of the voice's pill, -1 if none
     juce::Rectangle<int> sourceRowBounds (int note) const; // empty if the note has no row
     juce::Rectangle<int> targetRowBounds (int note) const;
     juce::Rectangle<int> boxesArea() const;                // both boxes and the gap, view coordinates
@@ -70,6 +73,7 @@ private:
     SwingersProcessor& processor;
     PatchbayModel patchModel;
     bool allNotes = false;
+    std::function<void()> editMapsHandler;
 
     juce::TextButton allNotesButton { "All notes" };
     juce::TextButton editMapsButton { "Edit maps" };

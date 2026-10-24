@@ -93,8 +93,9 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
 
     // One generator per category: stains and tape retry until they clear the keep-clear list, and that must
     // not shift the numbers the other categories draw (screws stay put whatever the controls are).
-    const auto generatorFor = [seed] (juce::int64 category) {
-        return juce::Random ((juce::int64) seed * 2654435761LL + 12345 + category * 0x2545F4914F6CDD1DLL);
+    const auto generatorFor = [seed] (uint64_t category) { // unsigned: wraps without overflow
+        const uint64_t mixed = (uint64_t) seed * 2654435761ULL + 12345ULL + category * 0x2545F4914F6CDD1DULL;
+        return juce::Random ((juce::int64) mixed);
     };
     auto scratchRandom = generatorFor (1);
     auto stainRandom = generatorFor (2);

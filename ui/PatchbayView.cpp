@@ -21,7 +21,8 @@ constexpr int kContentBottom = 14;
 constexpr int kScrollBarThickness = 8;
 constexpr int kCanvasWidth = PatchbayView::kWidth - kScrollBarThickness;
 constexpr float kMaxStretch = 1.6f;              // a short column is spread over the box, up to this x kRowHeight
-constexpr float kDragStartDistance = 4.0f;
+constexpr float kDragStartDistance = 8.0f;
+constexpr float kCullMargin = 20.0f;             // more than half a row or a pill: nothing pops in at the viewport edge
 constexpr float kDropReach = 18.0f;              // how far (y) from a target row's centre a cable still connects
 
 const juce::Colour rowFill { 0xff2a2a2c };
@@ -71,6 +72,7 @@ public:
         litStart.fill (0);
         lit.fill (false);
         lastHits.fill (0);
+        setWantsKeyboardFocus (true);
     }
 
     std::function<void (int, int)> onConnect;
@@ -120,8 +122,15 @@ public:
         contentHeight = kContentTop + (int) total + kContentBottom;
         dragSource = -1;
         dragging = false;
+        syncHits(); // rows that appear (All notes) must not flash for old counts
         setSize (kCanvasWidth, contentHeight);
         repaint();
+    }
+
+    // Centre of the GM pill of that voice (canvas coordinates), -1 if it has none.
+    int gmPillCentreY (int voice) const
+    {
+        return voice >= 0 && voice < 128 && gmY[(size_t) voice] >= 0.0f ? (int) std::lround (gmY[(size_t) voice]) : -1;
     }
 
     int getContentHeight() const { return contentHeight; }
@@ -187,7 +196,7 @@ public:
     {
         const auto clip = g.getClipBounds().toFloat();
         const auto visible = [&] (float a, float b) {
-            return std::max (a, b) + 6.0f >= clip.getY() && std::min (a, b) - 6.0f <= clip.getBottom();
+            return std::max (a, b) + kCullMargin >= clip.getY() && std::min (a, b) - kCullMargin <= clip.getBottom();
         };
 
         if (model.showGmColumn)
@@ -210,15 +219,17 @@ public:
                 if (ti < 0)
                     continue;
                 const auto ty = tgtY[(size_t) ti];
-                if (! visible (sy, ty))
+                const bool throughGm = model.showGmColumn && c.gm >= 0 && gmY[(size_t) c.gm] >= 0.0f;
+                // The cable also goes through its GM pill, which can be far from both ends.
+                const auto gy = throughGm ? gmY[(size_t) c.gm] : sy;
+                if (! visible (std::min ({ sy, ty, gy }), std::max ({ sy, ty, gy })))
                     continue;
 
                 g.setColour (pass == 1 ? colours::amber : colours::silkscreen.withAlpha (0.3f));
                 const juce::PathStrokeType stroke (pass == 1 ? 2.5f : 2.0f);
                 const juce::Point<float> from ((float) (kX0 + kColumnWidth), sy), to ((float) kX2, ty);
-                if (model.showGmColumn && c.gm >= 0 && gmY[(size_t) c.gm] >= 0.0f)
+                if (throughGm)
                 {
-                    const auto gy = gmY[(size_t) c.gm];
                     g.strokePath (cable (from, { (float) (kX1 + 50), gy }, 50.0f), stroke);
                     g.strokePath (cable ({ (float) (kX1 + kColumnWidth - 50), gy }, to, 30.0f), stroke);
                 }
@@ -300,6 +311,23 @@ public:
             return;
         dragSource = row;
         dragPoint = e.position;
+        grabKeyboardFocus(); // Escape cancels the cable
+    }
+
+    bool keyPressed (const juce::KeyPress& key) override
+    {
+        if (key != juce::KeyPress::escapeKey || dragSource < 0)
+            return false;
+        cancelDrag();
+        return true;
+    }
+
+    void cancelDrag()
+    {
+        dragSource = -1;
+        dragging = false;
+        hoverTarget = -1;
+        repaint();
     }
 
     void mouseDrag (const juce::MouseEvent& e) override
@@ -322,11 +350,12 @@ public:
         const auto wasDragging = dragging;
         const auto target = wasDragging ? targetRowAt (e.position) : -1;
         const auto targetNote = target >= 0 ? model.targets[(size_t) target].note : -1;
+        // Empty space: inside the canvas, right of the left box (not on the source rows, which would be a click
+        // with a slip of the mouse), and not on a target.
+        const bool inEmptySpace = getLocalBounds().toFloat().contains (e.position)
+                                  && e.position.x > (float) (kX0 + kColumnWidth + 10);
 
-        dragSource = -1;
-        dragging = false;
-        hoverTarget = -1;
-        repaint();
+        cancelDrag();
 
         if (! wasDragging)
             return; // a plain click does nothing
@@ -335,9 +364,9 @@ public:
             if (onConnect)
                 onConnect (note, targetNote);
         }
-        else if (onDisconnect)
+        else if (inEmptySpace && onDisconnect)
         {
-            onDisconnect (note); // released in empty space
+            onDisconnect (note);
         }
     }
 
@@ -355,8 +384,8 @@ private:
     // The nearest target row to the right edge, within reach: the cable connects to it.
     int targetRowAt (juce::Point<float> p) const
     {
-        if (p.x < (float) (kX2 - 10))
-            return -1;
+        if (p.x < (float) (kX2 - 10) || p.x > (float) (kX2 + kColumnWidth + 10))
+            return -1; // only inside the target box
         int best = -1;
         auto bestDistance = kDropReach;
         for (size_t i = 0; i < tgtY.size(); ++i)
@@ -524,8 +553,8 @@ PatchbayView::PatchbayView (SwingersProcessor& p)
     allNotesButton.onClick = [this] { setAllNotes (allNotesButton.getToggleState()); };
     editMapsButton.setTooltip ("Edit the notes of the maps");
     editMapsButton.onClick = [this] {
-        if (onEditMaps)
-            onEditMaps();
+        if (editMapsHandler)
+            editMapsHandler();
     };
     doneButton.onClick = [this] {
         if (onDone)
@@ -565,6 +594,12 @@ void PatchbayView::refresh()
     layoutContent();
     updateEditMapsEnabled();
     repaint();
+}
+
+void PatchbayView::setEditMapsHandler (std::function<void()> handler)
+{
+    editMapsHandler = std::move (handler);
+    updateEditMapsEnabled();
 }
 
 void PatchbayView::setAllNotes (bool shouldShowAll)
@@ -636,6 +671,11 @@ juce::Component& PatchbayView::canvas()
     return *canvasComponent;
 }
 
+int PatchbayView::gmPillCentreY (int voice) const
+{
+    return canvasComponent->gmPillCentreY (voice);
+}
+
 juce::Rectangle<int> PatchbayView::sourceRowBounds (int note) const
 {
     return canvasComponent->sourceBounds (note);
@@ -678,7 +718,7 @@ void PatchbayView::layoutContent()
 
 void PatchbayView::updateEditMapsEnabled()
 {
-    editMapsButton.setEnabled (static_cast<bool> (onEditMaps));
+    editMapsButton.setEnabled (static_cast<bool> (editMapsHandler));
 }
 
 void PatchbayView::resized()

@@ -209,8 +209,8 @@ TEST_CASE ("patchbay: releasing a dragged cable in empty space disconnects the n
     canvas.mouseUp (mouse (canvas, portOf (kick), portOf (kick), left, false));
     CHECK (f.processor->current().overrides.empty());
 
-    // Dragged into the gap between the columns.
-    drag (canvas, portOf (kick), { 450.0f, 300.0f });
+    // Dragged into the gap between the columns (inside the canvas).
+    drag (canvas, portOf (kick), { 450.0f, 60.0f });
     CHECK (f.processor->current().overrides.dropped.count (36) == 1);
     CHECK (f.view().model().findSource (36)->state == SourceState::DroppedByUser);
 
@@ -219,6 +219,77 @@ TEST_CASE ("patchbay: releasing a dragged cable in empty space disconnects the n
     drag (canvas, portOf (dropped), f.view().targetRowBounds (33).getCentre().toFloat());
     CHECK (f.processor->current().overrides.direct.count (36) == 0);
     CHECK (f.processor->current().overrides.dropped.count (36) == 1);
+}
+
+TEST_CASE ("patchbay: a slip of the mouse, Escape or a release outside the canvas never drops a note")
+{
+    Fixture f;
+    f.editor->showPatchbay (true);
+    auto& canvas = f.view().canvas();
+    constexpr auto left = juce::ModifierKeys::leftButtonModifier;
+    const auto kick = f.view().sourceRowBounds (36);
+    const auto start = portOf (kick);
+
+    // Moved a few pixels, released in the same row: still a click.
+    drag (canvas, start, start.translated (-5.0f, 2.0f));
+    CHECK (f.processor->current().overrides.empty());
+
+    // Moved far enough to be a drag but released inside the source row / the left box.
+    drag (canvas, start, start.translated (-60.0f, 0.0f));
+    drag (canvas, start, { 100.0f, 100.0f });
+    CHECK (f.processor->current().overrides.empty());
+
+    // Released outside the canvas.
+    drag (canvas, start, { 450.0f, 3000.0f });
+    drag (canvas, start, { 450.0f, -40.0f });
+    drag (canvas, start, { 2000.0f, 60.0f });
+    CHECK (f.processor->current().overrides.empty());
+
+    // Escape in the middle of a drag cancels it, even if the release is in empty space.
+    canvas.mouseDown (mouse (canvas, start, start, left, false));
+    canvas.mouseDrag (mouse (canvas, { 450.0f, 60.0f }, start, left, true));
+    CHECK (canvas.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+    canvas.mouseUp (mouse (canvas, { 450.0f, 60.0f }, start, left, true));
+    CHECK (f.processor->current().overrides.empty());
+    CHECK_FALSE (canvas.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey))); // nothing to cancel
+
+    // Right of the target box does not connect either (and is not a target: it is empty space).
+    const auto target = f.view().targetRowBounds (30);
+    drag (canvas, start, { (float) target.getRight() + 15.0f, (float) target.getCentreY() });
+    CHECK (f.processor->current().overrides.direct.empty());
+}
+
+TEST_CASE ("patchbay: cables and pills are drawn when the viewport shows only the GM pills")
+{
+    Fixture f;
+    f.editor->showPatchbay (true);
+    auto& view = f.view();
+    view.setAllNotes (true);
+
+    // All notes centres the GM column in the whole content: its pills are far from the rows of notes 23 and 36.
+    const auto pillY = view.gmPillCentreY (36);
+    REQUIRE (pillY > 0);
+    const auto sourceY = view.sourceRowBounds (36).getCentreY();
+    const auto top = pillY - 150;
+    REQUIRE (sourceY < top - 100); // the source row is off-screen
+    REQUIRE (view.targetRowBounds (33).getBottom() < top);
+    view.viewport().setViewPosition (0, top);
+    REQUIRE (view.viewport().getViewPositionY() == top);
+
+    const auto image = view.viewport().createComponentSnapshot (view.viewport().getLocalBounds(), false, 1.0f);
+    const auto y = pillY - top;
+    CHECK (image.getPixelAt (450, y).getAlpha() > 0); // the pill
+
+    // Cable pixels in the strips left and right of the pill (the S-curves from the off-screen rows end there).
+    const auto drawnBetween = [&] (int x0, int x1) {
+        for (int x = x0; x < x1; ++x)
+            for (int yy = 0; yy < image.getHeight(); ++yy)
+                if (image.getPixelAt (x, yy).getAlpha() > 0)
+                    return true;
+        return false;
+    };
+    CHECK (drawnBetween (300, 368));
+    CHECK (drawnBetween (532, 600));
 }
 
 TEST_CASE ("patchbay: a source row lights up for 120 ms when its note is routed")
@@ -292,9 +363,7 @@ TEST_CASE ("patchbay: Edit maps is disabled until something handles it")
     CHECK_FALSE (button->isEnabled());
 
     int calls = 0;
-    f.view().onEditMaps = [&calls] { ++calls; };
-    f.editor->showPatchbay (false);
-    f.editor->showPatchbay (true);
+    f.view().setEditMapsHandler ([&calls] { ++calls; }); // set while shown: the look follows at once
     CHECK (button->isEnabled());
     button->triggerClick();
     pumpMessages();
