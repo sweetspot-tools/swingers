@@ -17,6 +17,10 @@ ctest --test-dir /tmp/swingers-build --output-on-failure
 
 Si compila fuori dal repo (la cartella di build è a scelta). Con CMake 4 una dipendenza con un `cmake_minimum_required` molto vecchio può fallire: in tal caso aggiungere `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` alla configurazione.
 
+## Crediti
+
+Il font della scritta sul nastro è [Homemade Apple](https://fonts.google.com/specimen/Homemade+Apple) di Font Diner, licenza Apache-2.0 (testo in `resources/fonts/LICENSE-HomemadeApple-Apache-2.0.txt`).
+
 ## Licenza
 
 AGPL-3.0, vedi [LICENSE](LICENSE).

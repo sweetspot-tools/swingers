@@ -46,6 +46,8 @@ juce::MemoryBlock serialize (const PluginState& state)
     root->setProperty ("from", state.fromId);
     root->setProperty ("to", state.toId);
     root->setProperty ("channel", state.channel);
+    if (state.wearSeed != 0)
+        root->setProperty ("wearSeed", (juce::int64) state.wearSeed);
     if (state.fromCopy)
         root->setProperty ("fromMap", toJson (*state.fromCopy));
     if (state.toCopy)
@@ -76,6 +78,7 @@ std::optional<PluginState> deserialize (const void* data, size_t size)
     if (const auto to = json["to"].toString(); to.isNotEmpty())
         state.toId = to;
     state.channel = juce::jlimit (0, 16, (int) json["channel"]);
+    state.wearSeed = (uint32_t) juce::jlimit<juce::int64> (0, 0xffffffffLL, (juce::int64) json["wearSeed"]);
     state.fromCopy = mapCopyFrom (json["fromMap"]);
     state.toCopy = mapCopyFrom (json["toMap"]);
 

@@ -66,6 +66,18 @@ void SwingersProcessor::setChannel(int channel)
     notifyChanged();
 }
 
+uint32_t SwingersProcessor::wearSeed()
+{
+    if (state_.wearSeed == 0)
+    {
+        do
+            state_.wearSeed = (uint32_t) juce::Random::getSystemRandom().nextInt64();
+        while (state_.wearSeed == 0);
+        refreshSnapshot();
+    }
+    return state_.wearSeed;
+}
+
 void SwingersProcessor::applyOverrides(const PairOverrides& overrides)
 {
     const auto saved = library_.saveOverrides(overrides);
@@ -118,6 +130,8 @@ void SwingersProcessor::getStateInformation(juce::MemoryBlock& destData)
 
 void SwingersProcessor::applyLoadedState(PluginState loaded)
 {
+    if (loaded.wearSeed == 0)
+        loaded.wearSeed = state_.wearSeed; // a project without a seed keeps the instance's own wear
     state_ = std::move(loaded);
     rebuild();
     notifyChanged();

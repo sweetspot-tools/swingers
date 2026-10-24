@@ -45,14 +45,16 @@ juce_add_plugin(Swingers
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
-# Bundled drum maps (BinaryData namespace).
+# Bundled drum maps and the tape font (BinaryData namespace).
 juce_add_binary_data(SwingersMaps SOURCES
-    resources/maps/general-midi.swmap.json)
+    resources/maps/general-midi.swmap.json
+    resources/fonts/HomemadeApple-Regular.ttf)
 
 # Rack look-and-feel and the editor: shared by the plugin, the tests and the render tool.
 set(SWINGERS_UI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/RackLookAndFeel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ui/RackBackground.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/Wear.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/WearLayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/CompactPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin/PluginEditor.cpp)
 
@@ -96,6 +98,7 @@ target_sources(swingers_tests PRIVATE
     tests/test_map_library.cpp
     tests/test_plugin_state.cpp
     tests/test_editor.cpp
+    tests/test_wear.cpp
     plugin/PluginState.cpp
     plugin/PluginProcessor.cpp
     ${SWINGERS_UI_SOURCES})

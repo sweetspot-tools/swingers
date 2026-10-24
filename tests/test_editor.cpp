@@ -250,3 +250,56 @@ TEST_CASE ("LED lights for 80 ms after a routed note-on")
     panel.pollActivity (3000);
     CHECK (led.isLit());
 }
+
+TEST_CASE ("warnings label can show its tooltip and still blocks nothing")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+
+    PluginState state;
+    state.toId = "gone-kit";
+    DrumMap gone;
+    gone.id = "gone-kit";
+    gone.name = "Gone Kit";
+    gone.notes = { { 35, "Kick", 36, false } };
+    state.toCopy = gone;
+    const auto block = serialize (state);
+    processor.setStateInformation (block.getData(), (int) block.getSize());
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setVisible (true); // hit testing skips invisible components
+    auto& panel = child<CompactPanel> (*editor, "compactPanel");
+    auto& warnings = child<juce::Label> (panel, "warnings");
+    REQUIRE (warnings.getText().isNotEmpty());
+    CHECK (warnings.getTooltip().isNotEmpty());
+
+    // The tooltip window asks the component under the mouse: it must be the label, through both wear layers.
+    const auto centre = editor->getLocalPoint (&warnings, warnings.getLocalBounds().getCentre());
+    CHECK (editor->getComponentAt (centre) == &warnings);
+
+    // The label sits on the warnings row only: the controls above it are still reached.
+    CHECK (editor->getComponentAt (editor->getLocalPoint (&child<ChannelCycle> (panel, "channelBox"), juce::Point<int> (24, 29)))
+           == &child<ChannelCycle> (panel, "channelBox"));
+}
+
+TEST_CASE ("processor stays usable after the editor is destroyed")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+        REQUIRE (editor != nullptr);
+    }
+
+    // The editor cleared the refresh callback: nothing may call into the destroyed panel.
+    processor.selectMaps ("general-midi", "test-kit");
+    processor.setChannel (3);
+    CHECK (processor.current().to.id == "test-kit");
+    CHECK (processor.channel() == 3);
+    CHECK_FALSE (static_cast<bool> (processor.onStateChanged));
+}

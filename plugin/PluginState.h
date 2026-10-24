@@ -6,6 +6,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <cstdint>
 #include <optional>
 
 namespace swingers
@@ -18,10 +19,11 @@ struct PluginState
     int channel = 0; // 0 = all channels, 1..16
     std::optional<DrumMap> fromCopy, toCopy;
     std::optional<PairOverrides> overridesCopy;
+    uint32_t wearSeed = 0; // seed of the panel wear; 0 = not created yet (the processor picks one)
 };
 
 // JSON text: {"format":"swingers-state","version":1,"from":..,"to":..,"channel":..,
-//             "fromMap":{..},"toMap":{..},"overrides":{..}}
+//             "fromMap":{..},"toMap":{..},"overrides":{..},"wearSeed":..}
 juce::MemoryBlock serialize (const PluginState&);
 
 // nullopt when the data is not a version 1 "swingers-state". A missing or broken copy is just nullopt

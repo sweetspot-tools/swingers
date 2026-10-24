@@ -1,12 +1,12 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "RackBackground.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 namespace swingers
 {
@@ -72,6 +72,9 @@ public:
     void pollActivity (uint32_t nowMs);
     bool isLedLit() const { return led.isLit(); }
 
+    // Where the wear must stay clear: the controls, the printed text and the warnings row (panel coordinates).
+    static std::vector<juce::Rectangle<int>> wearKeepClear();
+
     void resized() override;
 
 private:
@@ -81,7 +84,6 @@ private:
     void updateWarnings();
 
     SwingersProcessor& processor;
-    RackBackground background; // first child: behind everything
     CompactSilkscreen silkscreen;
     juce::ComboBox fromBox, toBox;
     ChannelCycle channelCycle;

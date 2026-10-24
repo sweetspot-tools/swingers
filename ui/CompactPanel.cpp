@@ -117,9 +117,7 @@ CompactPanel::CompactPanel (SwingersProcessor& p) : processor (p)
     warningsLabel.setColour (juce::Label::textColourId, colours::amber);
     warningsLabel.setFont (RackLookAndFeel::silkscreenFont (10.0f));
     warningsLabel.setJustificationType (juce::Justification::centred);
-    warningsLabel.setInterceptsMouseClicks (false, false);
 
-    addAndMakeVisible (background);
     addAndMakeVisible (silkscreen);
     addAndMakeVisible (fromBox);
     addAndMakeVisible (toBox);
@@ -261,9 +259,18 @@ void CompactSilkscreen::paint (juce::Graphics& g)
     g.drawText ("MIDI", juce::Rectangle<int> (16, 60, 40, 14), juce::Justification::centred, false);
 }
 
+std::vector<juce::Rectangle<int>> CompactPanel::wearKeepClear()
+{
+    return { comboIn (fromBoxArea()), comboIn (toBoxArea()), channelArea(), buttonArea(), midiLedArea(),
+             warningsArea(),
+             // printed text: title, subtitle, MIDI label
+             { 26, 10, 120, 24 }, { 26, 36, 120, 11 }, { 16, 60, 40, 14 },
+             // the From / To boxes with their titles, and the arrow between them
+             fromBoxArea().expanded (2), toBoxArea().expanded (2), { 291, 28, 20, 18 } };
+}
+
 void CompactPanel::resized()
 {
-    background.setBounds (getLocalBounds());
     silkscreen.setBounds (getLocalBounds());
     fromBox.setBounds (comboIn (fromBoxArea()));
     toBox.setBounds (comboIn (toBoxArea()));

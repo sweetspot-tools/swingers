@@ -53,6 +53,9 @@ public:
     const ResolvedMaps& current() const { return current_; }
     int channel() const { return state_.channel; } // 0 = all, 1..16
 
+    // Seed of the panel wear, saved with the project. Created at random on first use (never 0).
+    uint32_t wearSeed();
+
     void selectMaps(const juce::String& fromId, const juce::String& toId);
     void setChannel(int channel);
     void applyOverrides(const PairOverrides&); // saves to the library and rebuilds the table
