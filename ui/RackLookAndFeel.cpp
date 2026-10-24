@@ -36,6 +36,9 @@ RackLookAndFeel::RackLookAndFeel()
     setColour (juce::TextButton::textColourOffId, colours::white);
     setColour (juce::TextButton::textColourOnId, colours::white);
 
+    setColour (juce::ScrollBar::thumbColourId, colours::faceButtonBorder);
+    setColour (juce::ScrollBar::trackColourId, colours::comboFill);
+
     setColour (juce::Label::textColourId, colours::silkscreen);
     setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
 
@@ -120,14 +123,16 @@ void RackLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& but
                                             bool highlighted, bool down)
 {
     const auto bounds = button.getLocalBounds().toFloat().reduced (0.5f);
-    auto fill = colours::faceButton;
+    // A toggle that is on gets the amber face (the preview's lit face button).
+    const bool lit = button.getClickingTogglesState() && button.getToggleState();
+    auto fill = lit ? colours::amber : colours::faceButton;
     if (highlighted)
         fill = fill.brighter (0.08f);
     if (down)
         fill = fill.darker (0.2f);
     g.setColour (fill);
     g.fillRoundedRectangle (bounds, 3.0f);
-    g.setColour (colours::faceButtonBorder);
+    g.setColour (lit ? colours::faceButtonLitBorder : colours::faceButtonBorder);
     g.drawRoundedRectangle (bounds, 3.0f, 1.0f);
 }
 
@@ -139,7 +144,9 @@ juce::Font RackLookAndFeel::getTextButtonFont (juce::TextButton&, int)
 void RackLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool)
 {
     g.setFont (getTextButtonFont (button, button.getHeight()));
-    g.setColour (button.findColour (juce::TextButton::textColourOffId).withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.5f));
+    const bool lit = button.getClickingTogglesState() && button.getToggleState();
+    g.setColour ((lit ? colours::faceButtonLitText : button.findColour (juce::TextButton::textColourOffId))
+                     .withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.5f));
     g.drawText (button.getButtonText().toUpperCase(), button.getLocalBounds(), juce::Justification::centred, false);
 }
 

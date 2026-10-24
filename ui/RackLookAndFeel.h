@@ -16,6 +16,8 @@ inline const juce::Colour comboFill { 0xff0b0b0c };
 inline const juce::Colour comboBorder { 0xff3a3a3d };
 inline const juce::Colour faceButton { 0xff3a3833 };
 inline const juce::Colour faceButtonBorder { 0xff57544b };
+inline const juce::Colour faceButtonLitBorder { 0xffffd36a };
+inline const juce::Colour faceButtonLitText { 0xff1d1606 };
 inline const juce::Colour cycleFace { 0xffb9ae8d };
 inline const juce::Colour cycleBorder { 0xffd8cfb0 };
 } // namespace colours

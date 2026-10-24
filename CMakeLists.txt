@@ -55,6 +55,8 @@ set(SWINGERS_UI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/RackLookAndFeel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/Wear.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/WearLayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/PatchbayModel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/PatchbayView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/CompactPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin/PluginEditor.cpp)
 
@@ -99,6 +101,8 @@ target_sources(swingers_tests PRIVATE
     tests/test_plugin_state.cpp
     tests/test_editor.cpp
     tests/test_wear.cpp
+    tests/test_patchbay_model.cpp
+    tests/test_patchbay_view.cpp
     plugin/PluginState.cpp
     plugin/PluginProcessor.cpp
     ${SWINGERS_UI_SOURCES})

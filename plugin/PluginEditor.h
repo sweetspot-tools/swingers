@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CompactPanel.h"
+#include "PatchbayView.h"
 #include "PluginProcessor.h"
 #include "RackLookAndFeel.h"
 #include "WearLayer.h"
@@ -9,18 +10,19 @@
 
 namespace swingers
 {
-// Editor: the compact From/To panel, between two wear layers (panel texture behind, tape in front). Later tasks add the patchbay view and the standalone file bar.
+// Editor: the compact From/To panel and the patchbay, between two wear layers (panel texture behind, tape in front). Later tasks add the patchbay view and the standalone file bar.
 class SwingersEditor : public juce::AudioProcessorEditor
 {
 public:
     explicit SwingersEditor (SwingersProcessor&);
     ~SwingersEditor() override;
 
-    // Placeholder until the patchbay exists: only remembers the request.
+    // true: the editor grows to the patchbay (900 x 600) and hides the compact panel; false: back to 520 x 140.
     void showPatchbay (bool show);
     bool isPatchbayShown() const { return patchbayShown; }
 
     CompactPanel& compactPanel() { return compact; }
+    PatchbayView& patchbayView() { return patchbay; }
 
     // Rectangles the tape pieces and stains must stay clear of (editor coordinates). The compact panel sets
     // its own; the patchbay, map editor and file bar pass theirs when they are shown.
@@ -33,6 +35,7 @@ private:
     RackLookAndFeel lookAndFeel; // declared before the children that use it
     WearLayer wearBackground { WearLayer::Layer::Background }; // behind everything
     CompactPanel compact;
+    PatchbayView patchbay; // hidden until Edit mapping
     WearLayer wearTape { WearLayer::Layer::Tape }; // above everything, clear of the controls
     juce::TooltipWindow tooltips { this, 600 };
     bool patchbayShown = false;
