@@ -56,7 +56,7 @@ Documents/Swingers/
 - La mappa General MIDI (note 35-81) è inclusa nel plugin e non si modifica: si duplica.
 - Un `id` usa solo `[a-z0-9-]` e il file si chiama esattamente `<id>.swmap.json`; il file di coppia `<idA>__<idB>.swpair.json`. Un file che non rispetta queste regole non viene caricato e viene segnalato nel selettore. Una mappa utente con lo stesso id di una inclusa non la sostituisce mai. Una mappa nuova, duplicata o importata prende l'id al primo salvataggio: il nome in minuscolo con i trattini più quattro cifre esadecimali casuali (es. `studio-kit-7f3a`), mai uno già usato.
 - Un file illeggibile non blocca mai l'audio: viene saltato e segnalato. Swingers non sovrascrive mai un file che non è riuscito a caricare.
-- Se una mappa scelta nel progetto non c'è più sul computer, o c'è ma è diversa, il plugin usa la copia salvata nel progetto e lo segnala (lo stesso per le eccezioni); per passare alla versione del computer basta sceglierla di nuovo nel selettore From/To.
+- Se una mappa scelta nel progetto non c'è più sul computer, o c'è ma è diversa, il plugin usa la copia salvata nel progetto e lo segnala (lo stesso per le eccezioni); per passare alla versione del computer basta sceglierla di nuovo nella lista From/To (anche se è già quella mostrata): si prendono la mappa e le eccezioni di questo computer.
 
 ## Editor delle mappe e import da Cubase
 

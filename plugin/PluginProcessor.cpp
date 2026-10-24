@@ -71,6 +71,7 @@ void SwingersProcessor::chooseMap(Side side, const juce::String& id)
         state_.toId = id;
         state_.toCopy.reset();
     }
+    state_.overridesCopy.reset(); // an explicit choice also takes this computer's pair file (if any)
     rebuild();
     notifyChanged();
 }

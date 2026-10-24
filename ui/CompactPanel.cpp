@@ -94,17 +94,18 @@ CompactPanel::CompactPanel (SwingersProcessor& p) : processor (p)
 
     channelCycle.setTooltip ("MIDI channel to convert (click to change): ALL or 1-16");
 
-    // By the ids listed when the boxes were filled: the library may have reloaded since.
-    fromBox.onChange = [this] {
-        const auto index = fromBox.getSelectedId() - 1;
+    // By the ids listed when the boxes were filled: the library may have reloaded since. A pick in the popup
+    // (onPick) counts even when it is the map already shown: that is how the user switches from the project's
+    // copy to this computer's version. onChange covers keyboard changes (a pick does not trigger it).
+    const auto choose = [this] (SwingersProcessor::Side side, int itemId) {
+        const auto index = itemId - 1;
         if (index >= 0 && index < (int) itemIds.size())
-            processor.chooseMap (SwingersProcessor::Side::from, itemIds[(size_t) index]);
+            processor.chooseMap (side, itemIds[(size_t) index]);
     };
-    toBox.onChange = [this] {
-        const auto index = toBox.getSelectedId() - 1;
-        if (index >= 0 && index < (int) itemIds.size())
-            processor.chooseMap (SwingersProcessor::Side::to, itemIds[(size_t) index]);
-    };
+    fromBox.onPick = [choose] (int itemId) { choose (SwingersProcessor::Side::from, itemId); };
+    toBox.onPick = [choose] (int itemId) { choose (SwingersProcessor::Side::to, itemId); };
+    fromBox.onChange = [this, choose] { choose (SwingersProcessor::Side::from, fromBox.getSelectedId()); };
+    toBox.onChange = [this, choose] { choose (SwingersProcessor::Side::to, toBox.getSelectedId()); };
     channelCycle.onChange = [this] (int channel) { processor.setChannel (channel); };
 
     // Other instances may have saved maps since: reload right before a list shows its items.

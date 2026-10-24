@@ -107,8 +107,9 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
   "Map '<nome>' on this computer differs from the copy saved in the project: using the project's copy"); stessa regola per
   le eccezioni (file di coppia diverso dalla copia → la copia, con avviso). Se manca la mappa e manca la copia: General
   MIDI con avviso "Map '<id>' not found and no copy in the project: using General MIDI". Si passa alla versione del
-  computer solo con una scelta esplicita: scegliere la mappa nel selettore From/To scarta la copia di quel lato; salvare
-  la mappa dall'editor scarta la copia dei lati che la usano; modificare le eccezioni sostituisce la copia (come prima).
+  computer solo con una scelta esplicita: scegliere una mappa nella lista From/To, **anche quella già mostrata**, scarta
+  la copia di quel lato e la copia delle eccezioni (si usano mappa e file di coppia del computer, se c'è); salvare la
+  mappa dall'editor scarta la copia dei lati che la usano; modificare le eccezioni sostituisce la copia (come prima).
 - **Thread:** `getStateInformation` legge solo uno snapshot serializzato, protetto da un lock e aggiornato a ogni
   ricostruzione, quindi è sicuro da qualsiasi thread del host; `setStateInformation` memorizza subito i byte come
   snapshot e applica lo stato sul thread dei messaggi (subito, se ci si è già, altrimenti con `callAsync` e una guardia

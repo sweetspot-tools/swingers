@@ -49,9 +49,9 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // Threading: library(), current(), wearSeed, selectMaps, setChannel, applyOverrides and onStateChanged are
-    // message-thread only (onStateChanged is always called there). The audio thread touches only the
-    // remapper. getStateInformation/setStateInformation may be called by the host on any thread: they only
+    // Threading: library(), current(), wearSeed, selectMaps, chooseMap, useLibraryVersionOf, reloadLibrary,
+    // setChannel, applyOverrides and onStateChanged are message-thread only (onStateChanged is always called
+    // there). The audio thread touches only the remapper. getStateInformation/setStateInformation may be called by the host on any thread: they only
     // exchange a serialized snapshot under stateLock_ (never taken by the audio thread); setStateInformation
     // applies the new state on the message thread.
     MapLibrary& library() { return library_; }
@@ -66,8 +66,8 @@ public:
     // library version, see resolve()).
     void selectMaps(const juce::String& fromId, const juce::String& toId);
 
-    // The user picked `id` in the From or To selector: that side's project copy is dropped, so the library
-    // version is used.
+    // The user picked `id` in the From or To selector: that side's project copy and the project's copy of the
+    // exceptions are dropped, so this computer's map and pair file (if any) are used.
     enum class Side { from, to };
     void chooseMap(Side side, const juce::String& id);
 

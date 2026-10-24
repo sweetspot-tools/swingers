@@ -365,3 +365,82 @@ TEST_CASE ("the From / To lists follow their own ids when the library reloads be
     fromBox.setSelectedId (testKitItem, juce::sendNotificationSync);
     CHECK (processor.current().from.id == "test-kit");
 }
+
+namespace
+{
+// My Kit as To with exceptions GM -> My Kit; then another instance changes the map and/or the pair file and
+// this processor reloads, so the project's copies win (with warnings).
+struct CopyWinsFixture
+{
+    CopyWinsFixture (bool changeMap, bool changePair)
+    {
+        DrumMap kit;
+        kit.id = "my-kit";
+        kit.name = "My Kit";
+        kit.notes = { { 40, "Snare", 38, false } };
+        {
+            MapLibrary writer (tmp.dir);
+            REQUIRE (writer.saveMap (kit).wasOk());
+        }
+        processor = std::make_unique<SwingersProcessor> (tmp.dir);
+        processor->selectMaps (kGeneralMidiId, "my-kit");
+        PairOverrides overrides;
+        overrides.fromId = kGeneralMidiId;
+        overrides.toId = "my-kit";
+        overrides.connect (36, 40);
+        processor->applyOverrides (overrides);
+        REQUIRE (processor->current().warnings.isEmpty());
+
+        MapLibrary other (tmp.dir);
+        if (changeMap)
+        {
+            kit.notes = { { 41, "Snare", 38, false } };
+            REQUIRE (other.saveMap (kit).wasOk());
+        }
+        if (changePair)
+        {
+            overrides.connect (36, 50);
+            REQUIRE (other.saveOverrides (overrides).wasOk());
+        }
+        processor->reloadLibrary();
+        panel = std::make_unique<CompactPanel> (*processor);
+    }
+
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    std::unique_ptr<SwingersProcessor> processor;
+    std::unique_ptr<CompactPanel> panel;
+};
+} // namespace
+
+TEST_CASE ("picking the shown map again in the popup switches to this computer's version")
+{
+    CopyWinsFixture f (true, false);
+    REQUIRE (f.processor->current().warnings.size() == 1);
+    CHECK (f.processor->current().to.find (40) != nullptr); // the project's copy
+    auto& toBox = child<MapListBox> (*f.panel, "toBox");
+    CHECK (toBox.getText() == "My Kit"); // the very item is shown
+
+    toBox.pickFromPopup (toBox.getSelectedId());
+    CHECK (f.processor->current().warnings.isEmpty());
+    CHECK (f.processor->current().to.find (41) != nullptr);
+    CHECK (f.processor->current().to.find (40) == nullptr);
+}
+
+TEST_CASE ("picking a map again in the popup adopts this computer's pair file")
+{
+    CopyWinsFixture f (false, true);
+    REQUIRE (f.processor->current().warnings.size() == 1);
+    CHECK (f.processor->current().overrides.direct.at (36) == 40);
+    auto& fromBox = child<MapListBox> (*f.panel, "fromBox");
+
+    int changes = 0;
+    f.processor->onStateChanged = [&] { ++changes; };
+    fromBox.pickFromPopup (fromBox.getSelectedId());
+    pumpMessages(); // an async change notification must not choose a second time
+    CHECK (changes == 1);
+    CHECK (f.processor->current().warnings.isEmpty());
+    CHECK (f.processor->current().overrides.direct.at (36) == 50);
+    CHECK (juce::JSON::toString (toJson (f.processor->current().overrides))
+           == juce::JSON::toString (toJson (f.processor->library().overrides (kGeneralMidiId, "my-kit"))));
+}
