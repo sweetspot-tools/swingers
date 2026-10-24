@@ -91,7 +91,16 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
     if (area.isEmpty())
         return items;
 
-    juce::Random r ((juce::int64) seed * 2654435761LL + 12345);
+    // One generator per category: stains and tape retry until they clear the keep-clear list, and that must
+    // not shift the numbers the other categories draw (screws stay put whatever the controls are).
+    const auto generatorFor = [seed] (juce::int64 category) {
+        return juce::Random ((juce::int64) seed * 2654435761LL + 12345 + category * 0x2545F4914F6CDD1DLL);
+    };
+    auto scratchRandom = generatorFor (1);
+    auto stainRandom = generatorFor (2);
+    auto tapeRandom = generatorFor (3);
+    auto screwRandom = generatorFor (4);
+
     const auto bounds = area.toFloat();
     const auto size = (float) area.getWidth() * (float) area.getHeight();
 
@@ -101,11 +110,11 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
     {
         WearItem s;
         s.kind = WearKind::Scratch;
-        const auto len = r.nextFloat() < 0.12f ? rnd (r, 70.0f, 140.0f) : rnd (r, 10.0f, 55.0f);
-        s.bounds = { rnd (r, bounds.getX() + 4.0f, bounds.getRight() - 4.0f),
-                     rnd (r, bounds.getY() + 4.0f, bounds.getBottom() - 4.0f), len, 0.0f };
-        s.angle = r.nextFloat() < 0.6f ? rnd (r, -20.0f, 20.0f) : rnd (r, 0.0f, 360.0f);
-        s.variant = r.nextInt();
+        const auto len = scratchRandom.nextFloat() < 0.12f ? rnd (scratchRandom, 70.0f, 140.0f) : rnd (scratchRandom, 10.0f, 55.0f);
+        s.bounds = { rnd (scratchRandom, bounds.getX() + 4.0f, bounds.getRight() - 4.0f),
+                     rnd (scratchRandom, bounds.getY() + 4.0f, bounds.getBottom() - 4.0f), len, 0.0f };
+        s.angle = scratchRandom.nextFloat() < 0.6f ? rnd (scratchRandom, -20.0f, 20.0f) : rnd (scratchRandom, 0.0f, 360.0f);
+        s.variant = scratchRandom.nextInt();
         items.push_back (s);
     }
 
@@ -113,17 +122,17 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
     const auto stains = juce::jlimit (3, 30, (int) (size / 14000.0f));
     for (int i = 0; i < stains; ++i)
     {
-        const bool speck = r.nextFloat() < 0.4f;
-        const auto rx = speck ? rnd (r, 0.8f, 2.0f) : rnd (r, 3.0f, 12.0f);
-        const auto ry = speck ? rx * rnd (r, 0.7f, 1.0f) : rnd (r, 1.8f, std::min (rx, 6.0f));
+        const bool speck = stainRandom.nextFloat() < 0.4f;
+        const auto rx = speck ? rnd (stainRandom, 0.8f, 2.0f) : rnd (stainRandom, 3.0f, 12.0f);
+        const auto ry = speck ? rx * rnd (stainRandom, 0.7f, 1.0f) : rnd (stainRandom, 1.8f, std::min (rx, 6.0f));
         for (int attempt = 0; attempt < 40; ++attempt)
         {
             WearItem s;
             s.kind = WearKind::Stain;
             s.bounds = juce::Rectangle<float> (2.0f * rx, 2.0f * ry)
-                           .withCentre ({ rnd (r, bounds.getX() + rx + 3.0f, bounds.getRight() - rx - 3.0f),
-                                          rnd (r, bounds.getY() + ry + 3.0f, bounds.getBottom() - ry - 3.0f) });
-            s.variant = r.nextInt();
+                           .withCentre ({ rnd (stainRandom, bounds.getX() + rx + 3.0f, bounds.getRight() - rx - 3.0f),
+                                          rnd (stainRandom, bounds.getY() + ry + 3.0f, bounds.getBottom() - ry - 3.0f) });
+            s.variant = stainRandom.nextInt();
             if (! hitsAny (s.bounds.expanded (1.0f), keepClear))
             {
                 items.push_back (s);
@@ -133,7 +142,7 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
     }
 
     // One to three pieces of masking tape, where they fit.
-    const auto wanted = 1 + r.nextInt (3);
+    const auto wanted = 1 + tapeRandom.nextInt (3);
     const auto& texts = wearTapeTexts();
     std::vector<juce::Rectangle<float>> placed;
     juce::StringArray used; // no text twice on one panel
@@ -150,15 +159,15 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
                     candidates.add (s);
             if (candidates.isEmpty())
                 continue;
-            const auto text = candidates[r.nextInt (candidates.size())];
+            const auto text = candidates[tapeRandom.nextInt (candidates.size())];
 
             for (int attempt = 0; attempt < 300 && ! done; ++attempt)
             {
                 // Later attempts use slightly smaller and flatter pieces.
                 const auto shrink = 1.0f - 0.25f * (float) attempt / 300.0f;
-                auto tape = makeTape (r, text, shrink);
-                tape.bounds.setPosition (rnd (r, inside.getX(), inside.getRight() - tape.bounds.getWidth()),
-                                         rnd (r, inside.getY(), inside.getBottom() - tape.bounds.getHeight()));
+                auto tape = makeTape (tapeRandom, text, shrink);
+                tape.bounds.setPosition (rnd (tapeRandom, inside.getX(), inside.getRight() - tape.bounds.getWidth()),
+                                         rnd (tapeRandom, inside.getY(), inside.getBottom() - tape.bounds.getHeight()));
 
                 const auto extent = wearExtent (tape);
                 if (! inside.contains (extent) || hitsAny (extent.expanded (1.0f), keepClear))
@@ -178,7 +187,7 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
     }
 
     // Four screws, a resting angle each; about 6% of the panels lose a screw.
-    const int missing = r.nextFloat() < 0.06f ? r.nextInt (4) : -1;
+    const int missing = screwRandom.nextFloat() < 0.06f ? screwRandom.nextInt (4) : -1;
     const juce::Point<float> corners[4] = { { bounds.getX() + kScrewInset, bounds.getY() + kScrewInset },
                                             { bounds.getRight() - kScrewInset, bounds.getY() + kScrewInset },
                                             { bounds.getX() + kScrewInset, bounds.getBottom() - kScrewInset },
@@ -188,8 +197,8 @@ std::vector<WearItem> generateWear (uint32_t seed, juce::Rectangle<int> area,
         WearItem s;
         s.kind = WearKind::Screw;
         s.bounds = juce::Rectangle<float> (kScrewSize, kScrewSize).withCentre (corners[i]);
-        s.angle = rnd (r, 0.0f, 180.0f);
-        s.variant = i == missing ? 2 : (r.nextFloat() < 0.5f ? 0 : 1);
+        s.angle = rnd (screwRandom, 0.0f, 180.0f);
+        s.variant = i == missing ? 2 : (screwRandom.nextFloat() < 0.5f ? 0 : 1);
         items.push_back (s);
     }
 

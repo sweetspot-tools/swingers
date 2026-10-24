@@ -74,6 +74,8 @@ uint32_t SwingersProcessor::wearSeed()
             state_.wearSeed = (uint32_t) juce::Random::getSystemRandom().nextInt64();
         while (state_.wearSeed == 0);
         refreshSnapshot();
+        // A new seed is part of the project: let the host know it has something to save.
+        updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
     }
     return state_.wearSeed;
 }

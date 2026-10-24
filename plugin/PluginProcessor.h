@@ -43,7 +43,7 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // Threading: library(), current(), selectMaps, setChannel, applyOverrides and onStateChanged are
+    // Threading: library(), current(), wearSeed, selectMaps, setChannel, applyOverrides and onStateChanged are
     // message-thread only (onStateChanged is always called there). The audio thread touches only the
     // remapper. getStateInformation/setStateInformation may be called by the host on any thread: they only
     // exchange a serialized snapshot under stateLock_ (never taken by the audio thread); setStateInformation

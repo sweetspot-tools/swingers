@@ -130,6 +130,29 @@ TEST_CASE ("wear: four screws, one per corner")
     }
 }
 
+TEST_CASE ("wear: scratches and screws do not depend on the keep-clear list")
+{
+    const auto ofKind = [] (const std::vector<WearItem>& items, WearKind kind) {
+        std::vector<WearItem> out;
+        for (const auto& i : items)
+            if (i.kind == kind)
+                out.push_back (i);
+        return out;
+    };
+
+    for (uint32_t seed : { 1u, 7u, 99u, 12345u, 0xdeadbeefu })
+    {
+        const auto a = generateWear (seed, kArea, kKeepClear);
+        const auto b = generateWear (seed, kArea, {});
+        const auto c = generateWear (seed, kArea, { { 0, 0, 260, 140 } });
+        for (const auto kind : { WearKind::Scratch, WearKind::Screw })
+        {
+            CHECK (ofKind (a, kind) == ofKind (b, kind));
+            CHECK (ofKind (a, kind) == ofKind (c, kind));
+        }
+    }
+}
+
 TEST_CASE ("wear: scales to other panel sizes")
 {
     const juce::Rectangle<int> big (0, 0, 900, 520);
@@ -155,6 +178,36 @@ TEST_CASE ("wear: the seed survives the state round trip")
     }
     CHECK (juce::String::fromUTF8 (static_cast<const char*> (serialize (state).getData()), (int) serialize (state).getSize())
                .contains ("\"wearSeed\""));
+}
+
+namespace
+{
+struct ChangeCounter : juce::AudioProcessorListener
+{
+    int stateChanges = 0;
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged (juce::AudioProcessor*, const ChangeDetails& details) override
+    {
+        stateChanges += details.nonParameterStateChanged ? 1 : 0;
+    }
+};
+} // namespace
+
+TEST_CASE ("wear: a new seed tells the host the state changed, once")
+{
+    const auto root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                          .getChildFile ("swingers-wear-" + juce::Uuid().toString());
+    {
+        SwingersProcessor processor (root);
+        ChangeCounter counter;
+        processor.addListener (&counter);
+        processor.wearSeed();
+        CHECK (counter.stateChanges == 1);
+        processor.wearSeed();
+        CHECK (counter.stateChanges == 1);
+        processor.removeListener (&counter);
+    }
+    root.deleteRecursively();
 }
 
 TEST_CASE ("wear: the processor creates a seed once and keeps it in the project")
