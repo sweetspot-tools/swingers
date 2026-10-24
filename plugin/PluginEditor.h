@@ -19,6 +19,7 @@ public:
     ~SwingersEditor() override;
 
     // true: the editor grows to the patchbay (900 x 600) and hides the compact panel; false: back to 520 x 140.
+    // Leaving the map editor with unsaved edits asks first (Save / Discard / Cancel); the change may happen later.
     void showPatchbay (bool show);
     bool isPatchbayShown() const { return patchbayShown; }
 
@@ -37,6 +38,9 @@ public:
     void resized() override;
 
 private:
+    void applyPatchbay (bool show);  // showPatchbay without the question
+    void enterMapEditor();           // shows the map editor as it is
+
     SwingersProcessor& processor;
     RackLookAndFeel lookAndFeel; // declared before the children that use it
     WearLayer wearBackground { WearLayer::Layer::Background }; // behind everything

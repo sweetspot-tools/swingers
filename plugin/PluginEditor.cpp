@@ -24,7 +24,7 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     compact.onEditMapping = [this] { showPatchbay (true); };
     patchbay.onDone = [this] { showPatchbay (false); };
     patchbay.setEditMapsHandler ([this] { showMapEditor (true); });
-    mapEditor.onBack = [this] { showPatchbay (true); };
+    mapEditor.onBack = [this] { applyPatchbay (true); }; // the view has asked already
     mapEditor.onLibraryChanged = [this] { compact.refresh(); };
     patchbay.onLayoutChanged = [this] {
         if (patchbayShown)
@@ -40,10 +40,21 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     };
 
     setSize (CompactPanel::kWidth, CompactPanel::kHeight);
+
+    // The previous editor window was closed with unsaved map edits: come back to them.
+    if (auto draft = processor.takeMapDraft())
+    {
+        mapEditor.restoreDraft (*draft);
+        enterMapEditor();
+    }
 }
 
 SwingersEditor::~SwingersEditor()
 {
+    if (mapEditorShown)
+        if (auto draft = mapEditor.draft())
+            processor.setMapDraft (std::move (*draft));
+
     processor.onStateChanged = nullptr;
     patchbay.onLayoutChanged = nullptr;
     patchbay.setEditMapsHandler (nullptr);
@@ -53,6 +64,14 @@ SwingersEditor::~SwingersEditor()
 }
 
 void SwingersEditor::showPatchbay (bool show)
+{
+    if (mapEditorShown)
+        mapEditor.runGuarded ([this, show] { applyPatchbay (show); });
+    else
+        applyPatchbay (show);
+}
+
+void SwingersEditor::applyPatchbay (bool show)
 {
     patchbayShown = show;
     mapEditorShown = false;
@@ -80,11 +99,18 @@ void SwingersEditor::showMapEditor (bool show)
         return;
     }
 
+    if (mapEditorShown)
+        return; // already there: opening again would drop the edits
+    mapEditor.open();
+    enterMapEditor();
+}
+
+void SwingersEditor::enterMapEditor()
+{
     patchbayShown = false;
     mapEditorShown = true;
     compact.setVisible (false);
     patchbay.setVisible (false);
-    mapEditor.open();
     mapEditor.setVisible (true);
     setWearKeepClear (MapEditorView::wearKeepClear());
     setSize (MapEditorView::kWidth, MapEditorView::kHeight);

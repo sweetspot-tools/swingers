@@ -491,3 +491,138 @@ TEST_CASE ("text typed in a row reaches the map, also when SAVE comes before the
     CHECK (f.view->editedMap().find (38)->name == "Snare Again");
     CHECK (f.view->isDirty());
 }
+
+TEST_CASE ("unsaved edits survive the editor window being closed")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+    processor.selectMaps ("general-midi", "my-kit");
+
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+        auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+        REQUIRE (swingersEditor != nullptr);
+        swingersEditor->showMapEditor (true);
+        swingersEditor->mapEditorView().setNoteName (38, "Snare Draft");
+        CHECK (swingersEditor->mapEditorView().isDirty());
+    } // the host closes the window
+    CHECK (processor.hasMapDraft());
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+    REQUIRE (swingersEditor != nullptr);
+    CHECK (swingersEditor->isMapEditorShown());
+    CHECK (editor->getWidth() == 900);
+    CHECK (editor->getHeight() == 600);
+    CHECK_FALSE (processor.hasMapDraft()); // consumed
+
+    auto& view = swingersEditor->mapEditorView();
+    CHECK (view.isDirty());
+    CHECK (view.editedMap().id == "my-kit");
+    CHECK (view.editedMap().find (38)->name == "Snare Draft");
+    CHECK (view.statusText() == "Unsaved changes restored");
+    CHECK_FALSE (view.statusIsError());
+    CHECK (button (view, "save").isEnabled());
+
+    REQUIRE (view.save());
+    MapLibrary fresh (tmp.dir);
+    CHECK (fresh.find ("my-kit")->find (38)->name == "Snare Draft");
+
+    // Saved: closing again leaves no draft.
+    editor.reset();
+    CHECK_FALSE (processor.hasMapDraft());
+}
+
+TEST_CASE ("a draft of a new map comes back as a new map; a discarded edit leaves no draft")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+        auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+        swingersEditor->showMapEditor (true);
+        auto& view = swingersEditor->mapEditorView();
+        view.startNewMap();
+        view.setMapName ("Draft Kit");
+        view.setNoteName (36, "Boom");
+    }
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+        auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+        REQUIRE (swingersEditor->isMapEditorShown());
+        auto& view = swingersEditor->mapEditorView();
+        CHECK (view.editedMap().id == "new-map");
+        CHECK (view.editedMap().name == "Draft Kit");
+        CHECK (view.editedMap().find (36)->name == "Boom");
+        CHECK_FALSE (button (view, "duplicate").isEnabled()); // nothing in the library to copy yet
+        CHECK (processor.library().find ("new-map") == nullptr);
+
+        // Discard through the public API: asks, then leaves no draft behind.
+        int questions = 0;
+        view.askUnsaved = [&questions] (std::function<void (MapEditorView::UnsavedChoice)> reply) {
+            ++questions;
+            reply (MapEditorView::UnsavedChoice::discard);
+        };
+        swingersEditor->showMapEditor (false);
+        CHECK (questions == 1);
+        CHECK (swingersEditor->isPatchbayShown());
+        CHECK_FALSE (swingersEditor->isMapEditorShown());
+    }
+    CHECK_FALSE (processor.hasMapDraft());
+}
+
+TEST_CASE ("leaving the map editor through the editor API asks about unsaved edits")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+    processor.selectMaps ("general-midi", "my-kit");
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+    swingersEditor->showMapEditor (true);
+    auto& view = swingersEditor->mapEditorView();
+    view.setNoteName (38, "Changed");
+
+    int questions = 0;
+    view.askUnsaved = [&questions] (std::function<void (MapEditorView::UnsavedChoice)> reply) {
+        ++questions;
+        reply (MapEditorView::UnsavedChoice::cancel);
+    };
+    swingersEditor->showMapEditor (false);
+    swingersEditor->showPatchbay (false);
+    swingersEditor->showPatchbay (true);
+    CHECK (questions == 3);
+    CHECK (swingersEditor->isMapEditorShown());
+    CHECK (view.isDirty());
+    CHECK (view.editedMap().find (38)->name == "Changed");
+
+    swingersEditor->showMapEditor (true); // already shown: keeps the edits
+    CHECK (view.editedMap().find (38)->name == "Changed");
+}
+
+TEST_CASE ("the selector follows its own list of ids")
+{
+    ViewFixture f;
+    auto* selector = dynamic_cast<juce::ComboBox*> (f.view->findChildWithID ("mapSelector"));
+    REQUIRE (selector != nullptr);
+    int otherIndex = -1;
+    for (int i = 0; i < selector->getNumItems(); ++i)
+        if (selector->getItemText (i) == "Other Kit")
+            otherIndex = i;
+    REQUIRE (otherIndex >= 0);
+
+    // A map saved elsewhere meanwhile shifts the library order; the item still means "Other Kit".
+    DrumMap early;
+    early.id = "aaa-kit";
+    early.name = "AAA Kit";
+    early.notes = { { 36, "K", 36, false } };
+    REQUIRE (f.processor->library().saveMap (early).wasOk());
+    selector->setSelectedItemIndex (otherIndex, juce::sendNotificationSync);
+    CHECK (f.view->editedMap().id == "other-kit");
+}

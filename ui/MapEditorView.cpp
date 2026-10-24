@@ -211,11 +211,10 @@ MapEditorView::MapEditorView (SwingersProcessor& p) : processor (p)
     selector.setTooltip ("The map to edit");
     selector.onChange = [this] {
         const auto id = selector.getSelectedId();
-        const auto& maps = processor.library().maps();
         if (id == kNewItemId)
             return;
-        if (id >= 1 && id <= (int) maps.size())
-            loadMapGuarded (maps[(size_t) id - 1].id);
+        if (id >= 1 && id <= (int) selectorIds.size())
+            loadMapGuarded (selectorIds[(size_t) id - 1]);
     };
 
     newButton.setTooltip ("Start an empty map");
@@ -376,6 +375,7 @@ void MapEditorView::runGuarded (std::function<void()> proceed)
                     self->refreshMapList();
                 break;
             case UnsavedChoice::discard:
+                self->discardEdits();
                 proceed();
                 break;
             case UnsavedChoice::cancel:
@@ -388,6 +388,33 @@ void MapEditorView::runGuarded (std::function<void()> proceed)
         askUnsaved (reply);
     else
         reply (UnsavedChoice::cancel);
+}
+
+void MapEditorView::discardEdits()
+{
+    // Back to what is in the library; a new map that was never saved is dropped for the map in use.
+    if (! isNew && processor.library().find (edited.id) != nullptr)
+        loadMap (edited.id);
+    else
+        open();
+}
+
+std::optional<SwingersProcessor::MapDraft> MapEditorView::draft()
+{
+    commitPendingEdits();
+    if (! dirty)
+        return std::nullopt;
+    return SwingersProcessor::MapDraft { edited, isNew };
+}
+
+void MapEditorView::restoreDraft (const SwingersProcessor::MapDraft& saved)
+{
+    edited = saved.map;
+    isNew = saved.isNew;
+    dirty = true;
+    refreshAll();
+    scrollToFirstNote();
+    setStatus ("Unsaved changes restored", false);
 }
 
 void MapEditorView::showUnsavedPrompt (std::function<void (UnsavedChoice)> reply)
@@ -574,9 +601,13 @@ juce::Component* MapEditorView::refreshComponentForRow (int row, bool, juce::Com
 void MapEditorView::refreshMapList()
 {
     selector.clear (juce::dontSendNotification);
+    selectorIds.clear();
     const auto& maps = processor.library().maps();
     for (size_t i = 0; i < maps.size(); ++i)
+    {
         selector.addItem (maps[i].name.isNotEmpty() ? maps[i].name : maps[i].id, (int) i + 1);
+        selectorIds.push_back (maps[i].id);
+    }
 
     if (isNew)
     {
@@ -586,8 +617,8 @@ void MapEditorView::refreshMapList()
         return;
     }
 
-    for (size_t i = 0; i < maps.size(); ++i)
-        if (maps[i].id == edited.id)
+    for (size_t i = 0; i < selectorIds.size(); ++i)
+        if (selectorIds[i] == edited.id)
             selector.setSelectedId ((int) i + 1, juce::dontSendNotification);
 }
 
@@ -608,7 +639,7 @@ void MapEditorView::updateControls()
     mapNameEditor.setReadOnly (readOnly);
     setEditorColour (mapNameEditor, readOnly ? colours::silkscreen.withAlpha (0.7f) : colours::white);
     saveButton.setEnabled (! readOnly && dirty);
-    duplicateButton.setEnabled (true);
+    duplicateButton.setEnabled (! isNew); // an unsaved map has nothing in the library to copy
 }
 
 void MapEditorView::markDirty()

@@ -9,6 +9,8 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <utility>
+#include <optional>
 
 namespace swingers
 {
@@ -60,6 +62,19 @@ public:
     void setChannel(int channel);
     void applyOverrides(const PairOverrides&); // saves to the library and rebuilds the table
 
+    // Unsaved edits of the map editor that survive the editor window being closed (the host may close and
+    // reopen it at any time). Kept in memory only: not part of the project state and not saved with it.
+    // The editor stores the draft when it is destroyed with unsaved edits and takes it back when it is
+    // created again. Message thread only.
+    struct MapDraft
+    {
+        DrumMap map;
+        bool isNew = false; // not in the library yet (a new or duplicated map)
+    };
+    void setMapDraft(MapDraft draft) { mapDraft_ = std::move(draft); }
+    std::optional<MapDraft> takeMapDraft() { return std::exchange(mapDraft_, std::nullopt); }
+    bool hasMapDraft() const { return mapDraft_.has_value(); }
+
     std::function<void()> onStateChanged; // editor refresh, called on the message thread
 
 private:
@@ -75,6 +90,7 @@ private:
     LiveRemapper remapper_;
     PluginState state_;
     ResolvedMaps current_;
+    std::optional<MapDraft> mapDraft_; // message thread only
 
     juce::CriticalSection stateLock_;
     juce::MemoryBlock stateSnapshot_; // guarded by stateLock_

@@ -8,6 +8,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace swingers
@@ -38,6 +39,11 @@ public:
 
     // Opens on the processor's To map (From when To is General MIDI). Drops whatever was being edited.
     void open();
+
+    // Unsaved edits to keep when the editor window closes: nullopt when nothing is unsaved.
+    std::optional<SwingersProcessor::MapDraft> draft();
+    // Reopens such a draft as it was (dirty), with the status "Unsaved changes restored".
+    void restoreDraft (const SwingersProcessor::MapDraft&);
 
     // The map being edited (a copy), with its pending changes.
     const DrumMap& editedMap() const { return edited; }
@@ -93,6 +99,7 @@ private:
     void showUnsavedPrompt (std::function<void (UnsavedChoice)> reply);
     void chooseCubaseFile();
     void scrollToFirstNote();
+    void discardEdits();
 
     SwingersProcessor& processor;
     DrumMap edited;
@@ -103,6 +110,7 @@ private:
     std::array<juce::String, 128> gmNames;
 
     juce::ComboBox selector;
+    std::vector<juce::String> selectorIds; // map id of item (id - 1), as listed when the selector was filled
     juce::TextEditor mapNameEditor;
     juce::TextButton newButton { "New" }, duplicateButton { "Duplicate" },
         importButton { juce::String::fromUTF8 ("Import from Cubase\xe2\x80\xa6") }, saveButton { "Save" },
