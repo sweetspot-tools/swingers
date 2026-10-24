@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swingers preview</title>
+<style>
+body{margin:0;padding:16px;background:#e9e8e4;font-family:system-ui,sans-serif;color:#222}
+h1{font-size:18px;margin:0 0 4px}
+p.note{margin:0 0 12px;font-size:13px;color:#555;max-width:900px}
+.tabs{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+.tabs button{font:600 13px system-ui;padding:6px 12px;border:1px solid #999;border-radius:6px;background:#fff;cursor:pointer}
+.tabs button.on{background:#161617;color:#f4f4f0;border-color:#161617}
+.view{display:none}.view.on{display:block}
+svg{display:block;max-width:100%;height:auto;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.cap{font-size:12px;color:#555;margin:6px 0 18px;max-width:900px}
+</style>
+</head>
+<body>
+<h1>Swingers — preview dell'interfaccia</h1>
+<p class="note">Bozza per decidere il layout prima del codice. Stesso linguaggio dei pannelli Fairy Tapes: pannello nero a grana fine, riquadri bianchi con il titolo sul bordo, serigrafia maiuscola, ambra per le scelte attive, LED senza alone. Dati di esempio, non mappe vere.</p>
+<div class="tabs" id="tabs">
+  <button data-v="compact" class="on">Plugin (compatto)</button>
+  <button data-v="patch">Edit mapping (patchbay)</button>
+  <button data-v="maps">Edit maps</button>
+  <button data-v="standalone">Standalone</button>
+</div>
+
+<div class="view on" id="v-compact"><svg id="s-compact" viewBox="0 0 520 140"></svg>
+<div class="cap">Quello che si vede nel DAW: 520 × 140. FROM → TO, canale, LED MIDI (lampeggia quando passano note), EDIT MAPPING. Sotto, in ambra, gli avvisi (qui: mappa mancante, usata la copia del progetto).</div></div>
+
+<div class="view" id="v-patch"><svg id="s-patch" viewBox="0 0 900 600"></svg>
+<div class="cap">EDIT MAPPING allarga la finestra del plugin a 900 × 600. Percorsi standard grigi tenui attraverso la colonna GM; trascina da una nota a sinistra a una a destra per un cavo diretto (ambra, nasconde il percorso standard); clic destro su una nota a sinistra per staccarla (grigia barrata) o ripristinarla. Note senza corrispondenza: grigie, senza cavo. ALL NOTES mostra tutte le 128.</div></div>
+
+<div class="view" id="v-maps"><svg id="s-maps" viewBox="0 0 900 600"></svg>
+<div class="cap">EDIT MAPS (dalla patchbay): tabella delle 128 note della mappa scelta, nome modificabile, voce GM da menu, stella = preferita. Le mappe incluse (GM) sono in sola lettura: si duplicano.</div></div>
+
+<div class="view" id="v-standalone"><svg id="s-standalone" viewBox="0 0 520 330"></svg>
+<div class="cap">Lo standalone: lo stesso pannello compatto più la barra file (OPEN MIDI → CONVERT → SAVE) e il resoconto.</div></div>
+
+<script>
+var NS='http://www.w3.org/2000/svg';
+var W='#f4f4f0',SILK='#c9c9c2',PANEL='#161617',AMB='#f0b429',RED='#e8392b',OFFL='#2a2a2c',DIMG='#5a5a5c';
+var FONT="'Arial Narrow','Helvetica Neue',Helvetica,Arial,sans-serif";
+function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;}
+function txt(p,s,x,y,sz,col,anchor,w){var t=el('text',{x:x,y:y,'font-size':sz,fill:col||W,'text-anchor':anchor||'middle','font-weight':w||700,'font-family':FONT},p);t.textContent=s;return t;}
+function defs(svg,w,h){var d=el('defs',{},svg);
+  var f=el('filter',{id:svg.id+'-tex',x:0,y:0,width:'100%',height:'100%','color-interpolation-filters':'sRGB'},d);
+  el('feTurbulence',{type:'fractalNoise',baseFrequency:'0.9 0.9',numOctaves:3,seed:4,result:'n'},f);
+  var l=el('feDiffuseLighting',{in:'n',surfaceScale:1.3,diffuseConstant:1,'lighting-color':'#fff',result:'l'},f);el('feDistantLight',{azimuth:235,elevation:58},l);
+  el('feColorMatrix',{in:'l',type:'matrix',values:'0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.07 0 0 0 -0.035'},f);
+  el('rect',{width:w,height:h,rx:14,fill:PANEL},svg);el('rect',{width:w,height:h,rx:14,fill:'#fff',filter:'url(#'+svg.id+'-tex)'},svg);}
+function box(p,x,y,w,h,title,where){var r=9,cx=x+w/2;var tx=txt(p,title,cx,(where==='top'?y:y+h)+4,11,W,'middle',800);
+  var tw=(tx.getComputedTextLength()||title.length*7.2)+18,t0=cx-tw/2,t1=cx+tw/2,d;
+  if(where==='top')d='M'+t1+' '+y+' H'+(x+w-r)+' A'+r+' '+r+' 0 0 1 '+(x+w)+' '+(y+r)+' V'+(y+h-r)+' A'+r+' '+r+' 0 0 1 '+(x+w-r)+' '+(y+h)+' H'+(x+r)+' A'+r+' '+r+' 0 0 1 '+x+' '+(y+h-r)+' V'+(y+r)+' A'+r+' '+r+' 0 0 1 '+(x+r)+' '+y+' H'+t0;
+  else d='M'+t0+' '+(y+h)+' H'+(x+r)+' A'+r+' '+r+' 0 0 1 '+x+' '+(y+h-r)+' V'+(y+r)+' A'+r+' '+r+' 0 0 1 '+(x+r)+' '+y+' H'+(x+w-r)+' A'+r+' '+r+' 0 0 1 '+(x+w)+' '+(y+r)+' V'+(y+h-r)+' A'+r+' '+r+' 0 0 1 '+(x+w-r)+' '+(y+h)+' H'+t1;
+  el('path',{d:d,fill:'none',stroke:W,'stroke-width':1.6,'stroke-linecap':'round'},p);}
+function combo(p,x,y,w,label){el('rect',{x:x,y:y,width:w,height:24,rx:3,fill:'#0b0b0c',stroke:'#3a3a3d'},p);
+  txt(p,label,x+9,y+16,12,W,'start',700);el('path',{d:'M'+(x+w-16)+' '+(y+10)+' l5 5 l5 -5',fill:'none',stroke:SILK,'stroke-width':1.5},p);}
+function faceBtn(p,x,y,w,h,label,lit,cb){var g=el('g',{style:'cursor:pointer'},p);
+  el('rect',{x:x,y:y,width:w,height:h,rx:3,fill:lit?AMB:'#3a3833',stroke:lit?'#ffd36a':'#57544b'},g);
+  txt(g,label,x+w/2,y+h/2+4,11,lit?'#1d1606':W,'middle',800);if(cb)g.addEventListener('click',cb);return g;}
+function led(p,cx,cy,on,col){return el('circle',{cx:cx,cy:cy,r:3.6,fill:on?(col||RED):OFFL,stroke:'#000','stroke-width':.6},p);}
+function screw(p,cx,cy,a){el('circle',{cx:cx,cy:cy,r:5.6,fill:'#2b2b2e',stroke:'#4c4c50'},p);var g=el('g',{transform:'rotate('+a+' '+cx+' '+cy+')'},p);
+  el('rect',{x:cx-4,y:cy-.9,width:8,height:1.8,rx:.5,fill:'#050505'},g);el('rect',{x:cx-.9,y:cy-4,width:1.8,height:8,rx:.5,fill:'#050505'},g);}
+
+/* ---------- compact panel (also reused by the standalone) ---------- */
+function compact(svg,oy,withWarn){
+  var p=el('g',{transform:'translate(0 '+oy+')'},svg);
+  screw(p,12,12,20);screw(p,508,12,105);
+  txt(p,'SWINGERS',26,30,20,W,'start',800);
+  txt(p,'DRUM MAP CONVERTER',26,44,9,SILK,'start',700);
+  box(p,150,14,140,46,'FROM','bottom');combo(p,158,22,124,'Studio Kit');
+  txt(p,'→',301,42,22,W,'middle',700);
+  box(p,312,14,140,46,'TO','bottom');combo(p,320,22,124,'Metal Kit');
+  /* channel: cycling selector (yellow LED when not default), as the suite's type-3 buttons */
+  txt(p,'CH',482,24,10,W,'middle',800);
+  var ch=el('g',{style:'cursor:pointer'},p);el('rect',{x:470,y:30,width:24,height:18,rx:2,fill:'#b9ae8d',stroke:'#d8cfb0'},ch);
+  var chLed=led(p,482,56,false,'#f2c21b');var chVal=txt(p,'ALL',482,70,10,SILK,'middle',700);
+  var CH=['ALL','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16'],ci=0;
+  ch.addEventListener('click',function(){ci=(ci+1)%CH.length;chVal.textContent=CH[ci];chLed.setAttribute('fill',ci?'#f2c21b':OFFL);});
+  /* MIDI activity LED (amber, flashes on notes) */
+  txt(p,'MIDI',36,72,10,W,'middle',800);var act=led(p,36,82,false,AMB);
+  setInterval(function(){act.setAttribute('fill',AMB);setTimeout(function(){act.setAttribute('fill',OFFL);},80);},Math.random()*300+350);
+  faceBtn(p,150,78,302,26,'EDIT MAPPING',false,function(){show('patch');});
+  if(withWarn){txt(p,"Map 'Studio Kit' not found on this computer: using the copy saved in the project",260,126,10,AMB,'middle',700);}
+  return p;}
+(function(){var s=document.getElementById('s-compact');defs(s,520,140);compact(s,0,true);})();
+
+/* ---------- patchbay ---------- */
+var FROM=[[23,'HH Open 2',46],[36,'Kick',36],[37,'Snare Rim',38],[38,'Snare',38],[40,'Snare Flam',-1],[42,'HH Closed',42],[44,'HH Pedal',44],[46,'HH Open',46],[49,'Crash L',49],[51,'Ride',51],[53,'Ride Bell',53],[57,'Crash R',57],[60,'China',52],[61,'Splash FX',-1]];
+var TO=[[26,'HH Open',46],[33,'Snare Flam',-1],[36,'Kick R',36],[38,'Snare Center',38],[40,'Snare Rimshot',38],[42,'HH Closed',42],[44,'HH Pedal',44],[49,'Crash 1',49],[51,'Ride Tip',51],[52,'China',52],[53,'Ride Bell',53],[57,'Crash 2',57]];
+var PREF={38:38};
+var GMN={36:'Bass Drum 1',38:'Acoustic Snare',42:'Closed Hi-Hat',44:'Pedal Hi-Hat',46:'Open Hi-Hat',49:'Crash Cymbal 1',51:'Ride Cymbal 1',52:'Chinese Cymbal',53:'Ride Bell',57:'Crash Cymbal 2'};
+var DIRECT={40:33},DROPPED={};
+function targetForGm(g){var c=TO.filter(function(t){return t[2]===g;});if(!c.length)return null;var pr=c.filter(function(t){return PREF[t[0]]===t[0];});return (pr[0]||c[0])[0];}
+function drawPatch(){var s=document.getElementById('s-patch');while(s.firstChild)s.removeChild(s.firstChild);defs(s,900,600);
+  screw(s,14,14,30);screw(s,886,14,80);screw(s,14,586,140);screw(s,886,586,10);
+  txt(s,'EDIT MAPPING',30,40,22,W,'start',800);txt(s,'STUDIO KIT  →  METAL KIT',30,58,11,SILK,'start',700);
+  faceBtn(s,620,24,110,26,'EDIT MAPS',false,function(){show('maps');});faceBtn(s,742,24,130,26,'DONE',false,function(){show('compact');});
+  var allOn=false;faceBtn(s,500,24,108,26,'ALL NOTES',allOn,null);
+  var X0=40,X1=330,X2=620,CW=240,TOP=86,RH=33;
+  box(s,X0-10,TOP-14,CW+20,FROM.length*RH+30,'STUDIO KIT','top');box(s,X2-10,TOP-14,CW+20,FROM.length*RH+30,'METAL KIT','top');
+  var gms=[];FROM.forEach(function(f){if(f[2]>=0&&!DIRECT[f[0]]&&!DROPPED[f[0]]&&targetForGm(f[2])!==null&&gms.indexOf(f[2])<0)gms.push(f[2]);});gms.sort(function(a,b){return a-b;});
+  var gmY={},gTop=TOP+((FROM.length-gms.length)*RH)/2;
+  gms.forEach(function(g,i){gmY[g]=gTop+i*RH+RH/2;});
+  var tY={};TO.forEach(function(t,i){tY[t[0]]=TOP+i*(FROM.length*RH/TO.length)+(FROM.length*RH/TO.length)/2;});
+  var cab=el('g',{},s);
+  /* GM column: quiet labels */
+  txt(s,'GENERAL MIDI',X1+CW/2,TOP-4,10,DIMG,'middle',800);
+  var gmLayer=el('g',{},s);
+  gms.forEach(function(g){el('rect',{x:X1+40,y:gmY[g]-10,width:CW-80,height:20,rx:10,fill:PANEL,stroke:'#2c2c2e'},gmLayer);
+    txt(gmLayer,g+'  '+GMN[g],X1+CW/2,gmY[g]+4,11,'#8a8a8d','middle',700);});
+  var dirLayer=el('g',{},s);
+  var rowsL={};
+  FROM.forEach(function(f,i){var y=TOP+i*RH,cy=y+RH/2,n=f[0];var direct=DIRECT[n]!==undefined,drop=!!DROPPED[n];
+    var tgt=direct?DIRECT[n]:(f[2]>=0?targetForGm(f[2]):null);var dead=drop||tgt===null;
+    var g=el('g',{style:'cursor:grab'},s);
+    el('rect',{x:X0,y:y+3,width:CW,height:RH-6,rx:4,fill:dead?'#1c1c1e':'#2a2a2c',stroke:dead?'#2c2c2e':'#55555a'},g);
+    txt(g,String(n),X0+12,cy+4,12,dead?DIMG:AMB,'start',800);txt(g,f[1],X0+44,cy+4,12,dead?DIMG:W,'start',700);
+    if(drop){el('path',{d:'M'+(X0+40)+' '+cy+' H'+(X0+CW-14),stroke:DIMG,'stroke-width':1.5},g);txt(g,'DISCONNECTED',X0+CW-10,cy+4,9,DIMG,'end',800);}
+    else if(tgt===null)txt(g,'NO MATCH',X0+CW-10,cy+4,9,DIMG,'end',800);
+    el('circle',{cx:X0+CW,cy:cy,r:4,fill:dead?'#333':W},g);
+    rowsL[n]={y:cy};
+    if(!dead){var ty=tY[tgt];
+      if(direct){el('path',{d:'M'+(X0+CW)+' '+cy+' C'+(X0+CW+180)+' '+cy+' '+(X2-180)+' '+ty+' '+X2+' '+ty,fill:'none',stroke:AMB,'stroke-width':3,'stroke-linecap':'round'},dirLayer);}
+      else{var gy=gmY[f[2]];
+        el('path',{d:'M'+(X0+CW)+' '+cy+' C'+(X0+CW+50)+' '+cy+' '+(X1+20)+' '+gy+' '+(X1+50)+' '+gy,fill:'none',stroke:SILK,'stroke-width':2,opacity:.3},cab);
+        el('path',{d:'M'+(X1+CW-50)+' '+gy+' C'+(X1+CW-20)+' '+gy+' '+(X2-50)+' '+ty+' '+X2+' '+ty,fill:'none',stroke:SILK,'stroke-width':2,opacity:.3},cab);}}
+    g.addEventListener('contextmenu',function(e){e.preventDefault();if(DROPPED[n]||DIRECT[n]!==undefined){delete DROPPED[n];delete DIRECT[n];}else DROPPED[n]=1;drawPatch();});
+    g.addEventListener('mousedown',function(e){if(e.button!==0||drop)return;startDrag(s,X0+CW,cy,n,tY,X2);});
+  });
+  TO.forEach(function(t){var cy=tY[t[0]],h=Math.min(RH,FROM.length*RH/TO.length)-6;
+    el('rect',{x:X2,y:cy-h/2,width:CW,height:h,rx:4,fill:'#2a2a2c',stroke:'#55555a'},s);
+    el('circle',{cx:X2,cy:cy,r:4,fill:W},s);
+    txt(s,String(t[0]),X2+14,cy+4,12,AMB,'start',800);txt(s,t[1],X2+46,cy+4,12,W,'start',700);
+    if(PREF[t[0]]===t[0])txt(s,'★',X2+CW-12,cy+4,12,AMB,'end',700);});
+  txt(s,'Drag a note on the left onto a note on the right to connect it directly · right-click a note on the left to disconnect or reset it',450,588,10,'#77777a','middle',700);
+}
+function startDrag(s,x,y,n,tY,X2){var line=el('path',{fill:'none',stroke:AMB,'stroke-width':3,'stroke-dasharray':'6 5'},s);
+  var pt=s.createSVGPoint();function loc(e){pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(s.getScreenCTM().inverse());}
+  function mv(e){var q=loc(e);line.setAttribute('d','M'+x+' '+y+' C'+(x+150)+' '+y+' '+(q.x-150)+' '+q.y+' '+q.x+' '+q.y);}
+  function up(e){window.removeEventListener('mousemove',mv);window.removeEventListener('mouseup',up);var q=loc(e);
+    if(q.x>=X2-10){var best=null,bd=1e9;for(var k in tY){var d=Math.abs(tY[k]-q.y);if(d<bd){bd=d;best=+k;}}if(best!==null&&bd<18){DIRECT[n]=best;delete DROPPED[n];}}
+    drawPatch();}
+  window.addEventListener('mousemove',mv);window.addEventListener('mouseup',up);}
+drawPatch();
+
+/* ---------- map editor ---------- */
+(function(){var s=document.getElementById('s-maps');defs(s,900,600);
+  screw(s,14,14,30);screw(s,886,14,80);screw(s,14,586,140);screw(s,886,586,10);
+  txt(s,'EDIT MAPS',30,40,22,W,'start',800);
+  combo(s,30,52,220,'Metal Kit');
+  faceBtn(s,410,24,70,26,'NEW',false);faceBtn(s,490,24,90,26,'DUPLICATE',false);faceBtn(s,590,24,150,26,'IMPORT FROM CUBASE…',false);faceBtn(s,750,24,60,26,'SAVE',false);faceBtn(s,820,24,52,26,'BACK',false,function(){show('patch');});
+  box(s,30,96,840,480,'NOTES','top');
+  var cols=[[50,'NOTE'],[110,'NAME'],[440,'GM VOICE'],[780,'PREFERRED']];cols.forEach(function(c){txt(s,c[1],c[0],124,10,SILK,'start',800);});
+  var rows=[[24,'',-1],[25,'',-1],[26,'HH Open',46],[27,'',-1],[28,'',-1],[29,'',-1],[30,'',-1],[31,'',-1],[32,'',-1],[33,'Snare Flam',-1],[34,'',-1],[35,'',-1],[36,'Kick R',36],[37,'',-1],[38,'Snare Center',38],[39,'',-1],[40,'Snare Rimshot',38],[41,'',-1],[42,'HH Closed',42]];
+  rows.forEach(function(r,i){var y=134+i*23;if(i%2===0)el('rect',{x:40,y:y,width:820,height:23,fill:'#1d1d1f'},s);
+    txt(s,String(r[0]),50,y+16,12,r[1]?AMB:DIMG,'start',800);
+    el('rect',{x:106,y:y+3,width:300,height:17,rx:2,fill:'#0b0b0c',stroke:'#2e2e31'},s);txt(s,r[1],112,y+16,12,W,'start',700);
+    el('rect',{x:436,y:y+3,width:300,height:17,rx:2,fill:'#0b0b0c',stroke:'#2e2e31'},s);
+    txt(s,r[2]>=0?(r[2]+'  '+GMN[r[2]]):'none',442,y+16,12,r[2]>=0?W:DIMG,'start',700);
+    txt(s,(r[0]===38)?'★':'☆',800,y+16,13,(r[0]===38)?AMB:DIMG,'middle',700);});
+  txt(s,'… 128 rows, scrollable',450,578,10,'#77777a','middle',700);
+})();
+
+/* ---------- standalone ---------- */
+(function(){var s=document.getElementById('s-standalone');defs(s,520,330);compact(s,0,false);
+  box(s,14,124,492,48,'FILE','bottom');
+  faceBtn(s,26,134,120,26,'OPEN MIDI…',false);txt(s,'groove_verse.mid',156,151,11,W,'start',700);
+  faceBtn(s,300,134,90,26,'CONVERT',true);faceBtn(s,400,134,94,26,'SAVE…',false);
+  box(s,14,200,492,118,'REPORT','top');
+  var lines=['Tracks: 1   ·   notes converted: 412','Dropped (no match): 61 Splash FX ×3','Dropped (disconnected): none','Saved: groove_verse-Metal-Kit.mid'];
+  lines.forEach(function(l,i){txt(s,l,28,226+i*22,12,i===1?AMB:SILK,'start',700);});
+})();
+
+function show(v){document.querySelectorAll('.view').forEach(function(e){e.classList.toggle('on',e.id==='v-'+v);});
+  document.querySelectorAll('#tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.v===v);});}
+document.getElementById('tabs').addEventListener('click',function(e){if(e.target.dataset.v)show(e.target.dataset.v);});
+</script>
+</body>
+</html>

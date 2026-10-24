@@ -103,6 +103,11 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 
 ## 5. Interfaccia
 
+**Layout approvato dall'utente il 2026-10-24** sulla preview `docs/mockups/swingers_preview.html`: pannello compatto
+520 × 140 (FROM → TO in riquadri col titolo sul bordo basso, canale come selettore che cicla con LED giallo, LED MIDI
+ambra, EDIT MAPPING, riga avvisi in ambra); patchbay ed editor delle mappe a 900 × 600 (la finestra del plugin si
+allarga); standalone 520 × 330 con riquadri FILE e REPORT.
+
 Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, grana, serigrafia; vedi
 `fairy-tapes/docs/DESIGN_SYSTEM.md`), ridisegnato in JUCE.
 
@@ -154,5 +159,4 @@ di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 
 ## 9. Decisioni aperte
 
-- Grafica di dettaglio di pannello compatto, patchbay ed editor: da fissare con una preview HTML come per i Fairy Tapes.
 - Come si distribuiscono i binari (firma e notarizzazione su Mac, installer): da decidere prima del primo rilascio.
