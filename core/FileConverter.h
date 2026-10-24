@@ -18,6 +18,10 @@ struct ConversionReport
     bool ok() const { return error.isEmpty(); }
 };
 
+// True when both paths are the same file: same path, same link target, or (when both exist) the same file
+// reached through a symlinked folder or a hard link. Used to never write over the input.
+bool isSameFile (const juce::File& a, const juce::File& b);
+
 // Tick-exact: timestamps (ticks), time format and track layout are copied as they are, only note numbers
 // change and unroutable notes disappear. channel: 0 = all, 1..16 = only that channel.
 // On error `out` is left empty.

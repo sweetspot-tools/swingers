@@ -2,6 +2,9 @@
 
 #include "NoteRouter.h"
 
+#include <filesystem>
+#include <system_error>
+
 namespace swingers
 {
 namespace
@@ -31,6 +34,21 @@ void copyTimeFormat (const juce::MidiFile& from, juce::MidiFile& to)
     }
 }
 } // namespace
+
+bool isSameFile (const juce::File& a, const juce::File& b)
+{
+    if (a == b || a.getLinkedTarget() == b.getLinkedTarget())
+        return true;
+
+    // equivalent() needs both files to exist: when the output is not there yet it cannot be the input.
+    std::error_code ec;
+#if JUCE_WINDOWS
+    const std::filesystem::path pa (a.getFullPathName().toWideCharPointer()), pb (b.getFullPathName().toWideCharPointer());
+#else
+    const std::filesystem::path pa (a.getFullPathName().toStdString()), pb (b.getFullPathName().toStdString());
+#endif
+    return std::filesystem::equivalent (pa, pb, ec) && ! ec;
+}
 
 ConversionReport convertMidiFile (const juce::MidiFile& in, int fileType, const ConversionTable& table,
                                   int channel, juce::MidiFile& out)
@@ -117,7 +135,7 @@ ConversionReport convertMidiFile (const juce::File& in, const juce::File& out, c
 {
     ConversionReport report;
 
-    if (in == out || in.getLinkedTarget() == out.getLinkedTarget())
+    if (isSameFile (in, out))
     {
         report.error = "The output file must be different from the input file";
         return report;

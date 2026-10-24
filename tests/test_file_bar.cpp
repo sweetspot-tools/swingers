@@ -198,6 +198,24 @@ TEST_CASE ("a file that is not MIDI is reported and nothing is enabled")
     CHECK_FALSE (f.button ("convertMidi").isEnabled());
 }
 
+TEST_CASE ("a failed open keeps the file that was loaded and shows the error")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    Fixture f;
+    REQUIRE (f.bar().loadFile (f.input));
+    REQUIRE (f.bar().convert());
+
+    const auto junk = f.files.dir.getChildFile ("junk.mid");
+    REQUIRE (junk.replaceWithText ("not a midi file"));
+    CHECK_FALSE (f.bar().loadFile (junk));
+    CHECK (f.bar().hasFile());
+    CHECK (f.bar().sourceFile() == f.input);
+    CHECK (f.bar().hasConverted());
+    CHECK (f.button ("saveMidi").isEnabled());
+    CHECK (f.bar().reportLines().strings.getLast() == "Cannot read the MIDI file");
+    CHECK (f.bar().reportLines()[0].startsWith ("Tracks: 1"));
+}
+
 TEST_CASE ("convert reports tracks, notes and the dropped notes with their names")
 {
     juce::ScopedJuceInitialiser_GUI gui;
@@ -358,4 +376,111 @@ TEST_CASE ("the file bar draws without trouble in every state")
     REQUIRE (f.bar().convert());
     REQUIRE (f.bar().saveTo (f.bar().suggestedOutput()));
     CHECK (snapshot().isValid());
+}
+
+TEST_CASE ("a conversion is dropped when the maps, the overrides or the channel change")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    Fixture f;
+    const auto convertedFile = [&] {
+        REQUIRE (f.bar().loadFile (f.input));
+        REQUIRE (f.bar().convert());
+        REQUIRE (f.bar().hasConverted());
+        REQUIRE (f.button ("saveMidi").isEnabled());
+    };
+    const auto requireInvalidated = [&] {
+        CHECK_FALSE (f.bar().hasConverted());
+        CHECK_FALSE (f.button ("saveMidi").isEnabled());
+        CHECK (f.bar().hasFile());
+        CHECK (f.button ("convertMidi").isEnabled());
+        CHECK (f.button ("convertMidi").getToggleState()); // lit again
+        CHECK (f.bar().reportLines() == juce::StringArray { "Maps changed: convert again" });
+    };
+
+    SECTION ("overrides")
+    {
+        convertedFile();
+        PairOverrides overrides;
+        overrides.fromId = "src-kit";
+        overrides.toId = "dst-kit";
+        overrides.connect (37, 38);
+        f.processor->applyOverrides (overrides);
+        requireInvalidated();
+    }
+
+    SECTION ("selected maps")
+    {
+        convertedFile();
+        f.processor->selectMaps ("dst-kit", "src-kit");
+        requireInvalidated();
+    }
+
+    SECTION ("channel")
+    {
+        convertedFile();
+        f.processor->setChannel (10);
+        requireInvalidated();
+    }
+
+    SECTION ("the current To map saved from the map editor")
+    {
+        convertedFile();
+        auto& swingers = f.asEditor();
+        swingers.showMapEditor (true);
+        auto& view = swingers.mapEditorView();
+        view.setNoteName (26, "HH Open Edited");
+        REQUIRE (view.save());
+        requireInvalidated();
+    }
+
+    SECTION ("a save dialog that returns afterwards says so instead of doing nothing")
+    {
+        convertedFile();
+        f.processor->setChannel (10);
+        const auto out = f.files.dir.getChildFile ("late.mid");
+        CHECK_FALSE (f.bar().saveTo (out));
+        CHECK_FALSE (out.existsAsFile());
+        CHECK (f.bar().reportLines().strings.getLast() == "Nothing to save: convert again");
+    }
+
+    SECTION ("a change that does not affect the result keeps it")
+    {
+        convertedFile();
+        f.processor->wearSeed(); // no maps change
+        f.processor->selectMaps ("src-kit", "dst-kit"); // same pair, same maps
+        CHECK (f.bar().hasConverted());
+        CHECK (f.button ("saveMidi").isEnabled());
+    }
+}
+
+TEST_CASE ("save adds .mid when the chosen name has no extension")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    Fixture f;
+    REQUIRE (f.bar().loadFile (f.input));
+    REQUIRE (f.bar().convert());
+    const auto chosen = f.files.dir.getChildFile ("renamed");
+    REQUIRE (f.bar().saveTo (chosen));
+    CHECK (f.files.dir.getChildFile ("renamed.mid").existsAsFile());
+    CHECK_FALSE (chosen.existsAsFile());
+    CHECK (f.bar().reportLines().strings.getLast() == "Saved: renamed.mid");
+}
+
+TEST_CASE ("save refuses the source reached through a symlinked folder")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    Fixture f;
+    const auto link = f.files.dir.getParentDirectory().getChildFile ("swingers-link-" + juce::Uuid().toString());
+    if (! f.files.dir.createSymbolicLink (link, true))
+        SKIP ("symbolic links are not available here");
+
+    REQUIRE (f.bar().loadFile (f.input));
+    REQUIRE (f.bar().convert());
+    juce::MemoryBlock before, after;
+    REQUIRE (f.input.loadFileAsData (before));
+    CHECK_FALSE (f.bar().saveTo (link.getChildFile (f.input.getFileName())));
+    CHECK (f.bar().reportLines().strings.getLast() == "The output file must be different from the input file");
+    REQUIRE (f.input.loadFileAsData (after));
+    CHECK (after == before);
+    link.deleteFile();
 }

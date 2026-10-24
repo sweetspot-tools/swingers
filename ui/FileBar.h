@@ -29,6 +29,13 @@ public:
     bool convert();
     bool saveTo (const juce::File&);
 
+    // Drops the converted result (the loaded file stays) and says so in the report; CONVERT lights again.
+    // No-op when nothing is converted.
+    void invalidateResult();
+    // invalidateResult() when the maps, the overrides or the channel differ from those the result was made with.
+    // The editor calls this whenever the processor changes.
+    void invalidateIfInputsChanged();
+
     bool hasFile() const { return loaded; }
     bool hasConverted() const { return converted; }
     juce::File sourceFile() const { return source; }
@@ -52,6 +59,7 @@ private:
     };
 
     void updateButtons();
+    juce::String inputsSignature() const;
     void chooseFileToOpen();
     void chooseFileToSave();
 
@@ -70,6 +78,7 @@ private:
     juce::MidiFile result;     // the converted file
     juce::String resultMapName; // "To" map of that conversion, for the suggested name
     bool converted = false;
+    juce::String resultInputs; // inputsSignature() at the time of the conversion
 
     std::vector<Line> summary; // tracks / dropped lines, or the error of a load or convert
     std::optional<Line> status; // "Saved: ..." or the error of a save

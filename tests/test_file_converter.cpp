@@ -254,6 +254,38 @@ TEST_CASE ("refuses to overwrite the input")
     CHECK (file.getFile().getSize() == before);
 }
 
+TEST_CASE ("refuses to overwrite the input through a symlinked folder")
+{
+    juce::MidiMessageSequence track;
+    track.addEvent (at (juce::MidiMessage::noteOn (10, 23, (juce::uint8) 100), 0));
+    track.addEvent (at (juce::MidiMessage::noteOff (10, 23, (juce::uint8) 0), 50));
+
+    juce::MidiFile in;
+    in.setTicksPerQuarterNote (480);
+    in.addTrack (track);
+
+    const auto base = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                          .getChildFile ("swingers-link-" + juce::Uuid().toString());
+    const auto real = base.getChildFile ("real");
+    REQUIRE (real.createDirectory());
+    const auto link = base.getChildFile ("link");
+
+    if (! real.createSymbolicLink (link, true))
+    {
+        base.deleteRecursively();
+        SKIP ("symbolic links are not available here");
+    }
+
+    const auto input = real.getChildFile ("in.mid");
+    REQUIRE (writeFile (input, in, 1));
+    const auto before = input.getSize();
+
+    const auto report = convertMidiFile (input, link.getChildFile ("in.mid"), ConversionTable::identity(), 0);
+    CHECK (report.error == "The output file must be different from the input file");
+    CHECK (input.getSize() == before);
+    base.deleteRecursively();
+}
+
 TEST_CASE ("refuses a file with no notes on the channel")
 {
     juce::MidiMessageSequence track;

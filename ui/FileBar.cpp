@@ -93,33 +93,58 @@ void FileBar::updateButtons()
 
 bool FileBar::loadFile (const juce::File& file)
 {
-    loaded = false;
-    converted = false;
-    status.reset();
-    summary.clear();
-    midi.clear();
-    result.clear();
-
+    juce::MidiFile read;
     int type = 1;
     bool ok = false;
     {
         juce::FileInputStream stream (file);
-        ok = stream.openedOk() && midi.readFrom (stream, false, &type);
+        ok = stream.openedOk() && read.readFrom (stream, false, &type);
     }
 
     if (! ok)
     {
-        midi.clear();
-        summary.push_back ({ "Cannot read the MIDI file", true });
+        // Whatever was loaded (and converted) stays; the error is shown under it.
+        status = Line { "Cannot read the MIDI file", true };
         updateButtons();
         return false;
     }
 
+    midi = read;
     fileType = type;
     source = file;
     loaded = true;
+    converted = false;
+    result.clear();
+    status.reset();
+    summary.clear();
     updateButtons();
     return true;
+}
+
+juce::String FileBar::inputsSignature() const
+{
+    const auto& maps = processor.current();
+    return juce::JSON::toString (toJson (maps.from), true) + '\n' + juce::JSON::toString (toJson (maps.to), true)
+         + '\n' + juce::JSON::toString (toJson (maps.overrides), true) + '\n' + juce::String (processor.channel());
+}
+
+void FileBar::invalidateResult()
+{
+    if (! converted)
+        return;
+
+    converted = false;
+    result.clear();
+    status.reset();
+    summary.clear();
+    summary.push_back ({ "Maps changed: convert again", false });
+    updateButtons();
+}
+
+void FileBar::invalidateIfInputsChanged()
+{
+    if (converted && inputsSignature() != resultInputs)
+        invalidateResult();
 }
 
 bool FileBar::convert()
@@ -147,6 +172,7 @@ bool FileBar::convert()
 
     result = out;
     converted = true;
+    resultInputs = inputsSignature();
     resultMapName = maps.to.name.isNotEmpty() ? maps.to.name : maps.to.id;
 
     summary.push_back ({ "Tracks: " + juce::String (report.tracksTouched) + kDot + "notes converted: "
@@ -180,14 +206,21 @@ juce::File FileBar::suggestedOutput() const
     return source.getSiblingFile (legalName (source.getFileNameWithoutExtension(), resultMapName) + ".mid");
 }
 
-bool FileBar::saveTo (const juce::File& file)
+bool FileBar::saveTo (const juce::File& chosen)
 {
+    const auto file = chosen.getFileExtension().isEmpty() ? chosen.withFileExtension ("mid") : chosen;
+
     if (! converted)
+    {
+        // A save dialog can come back after the maps changed (or the file was replaced).
+        status = Line { "Nothing to save: convert again", true };
+        repaint();
         return false;
+    }
 
     status.reset();
 
-    if (file == source || file.getLinkedTarget() == source.getLinkedTarget())
+    if (isSameFile (file, source))
     {
         status = Line { "The output file must be different from the input file", true };
         repaint();

@@ -29,7 +29,10 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     patchbay.onDone = [this] { showPatchbay (false); };
     patchbay.setEditMapsHandler ([this] { showMapEditor (true); });
     mapEditor.onBack = [this] { applyPatchbay (true); }; // the view has asked already
-    mapEditor.onLibraryChanged = [this] { compact.refresh(); };
+    mapEditor.onLibraryChanged = [this] {
+        compact.refresh();
+        fileBar.invalidateIfInputsChanged(); // an edited From / To map changes what CONVERT would do
+    };
     patchbay.onLayoutChanged = [this] {
         if (patchbayShown)
             setWearKeepClear (patchbay.wearKeepClear());
@@ -37,6 +40,7 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
 
     processor.onStateChanged = [this] {
         compact.refresh();
+        fileBar.invalidateIfInputsChanged();
         if (patchbayShown)
             patchbay.refresh();
         wearBackground.setSeed (processor.wearSeed());
