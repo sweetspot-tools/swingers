@@ -2,8 +2,19 @@
 
 namespace swingers
 {
+namespace
+{
+// Other instances may have saved maps while no editor was open: reload before the children read the library.
+SwingersProcessor& withFreshLibrary (SwingersProcessor& p)
+{
+    p.reloadLibrary();
+    return p;
+}
+} // namespace
+
 SwingersEditor::SwingersEditor (SwingersProcessor& p)
-    : juce::AudioProcessorEditor (p), processor (p), compact (p), patchbay (p), mapEditor (p), fileBar (p)
+    : juce::AudioProcessorEditor (p), processor (withFreshLibrary (p)), compact (p), patchbay (p), mapEditor (p),
+      fileBar (p)
 {
     setLookAndFeel (&lookAndFeel);
     setResizable (false, false);

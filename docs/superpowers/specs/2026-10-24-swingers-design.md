@@ -134,6 +134,9 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 - **Mai sovrascrivere ciò che non si è caricato:** un salvataggio rifiuta di rimpiazzare un file di mappa o di coppia
   che non è riuscito a caricarsi (illeggibile o con id sbagliato), per non distruggere dati dell'utente.
 - Cartella dell'utente: `Documents/Swingers/` con `maps/` e `pairs/`, la stessa per plugin e standalone.
+- **Più istanze sulla stessa cartella:** ogni istanza ricarica la libreria dal disco quando si apre l'editor, appena prima
+  che la lista From/To (o il selettore dell'editor delle mappe) mostri le voci, e prima di *New*, *Duplicate*, *Save* e
+  *Import* nell'editor delle mappe; così una mappa salvata da un'altra istanza compare senza riaprire il progetto.
 - Import da Cubase: dall'XML si prendono nome della mappa, e per ogni voce `INote` (nota), nome e `ONote` (voce GM
   proposta); le voci senza nome, con nome `---` o con `ONote` 0 restano senza voce GM. L'import tollera gli XML che
   Cubase produce con `<`, `>` o `&` non escapati dentro i nomi (es. `[Ride ><]`). L'import crea una mappa JSON nella

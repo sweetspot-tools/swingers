@@ -209,6 +209,10 @@ MapEditorView::MapEditorView (SwingersProcessor& p) : processor (p)
     mapNameEditor.onReturnKey = [this] { mapNameEditor.giveAwayKeyboardFocus(); };
 
     selector.setTooltip ("The map to edit");
+    selector.beforePopup = [this] {
+        processor.library().reload(); // maps saved by other instances meanwhile
+        refreshMapList();
+    };
     selector.onChange = [this] {
         const auto id = selector.getSelectedId();
         if (id == kNewItemId)
@@ -313,6 +317,7 @@ void MapEditorView::loadMapGuarded (const juce::String& id)
 
 void MapEditorView::startNewMap()
 {
+    processor.library().reload(); // other instances may have saved maps: the selector shows them
     edited = processor.library().newMap();
     isNew = true;
     dirty = true;
@@ -323,6 +328,7 @@ void MapEditorView::startNewMap()
 
 void MapEditorView::startDuplicate()
 {
+    processor.library().reload(); // copy what is on disk now
     auto copy = processor.library().duplicate (edited.id);
     if (copy.name.isEmpty())
         return; // the edited map is not in the library (a new map that was discarded)
@@ -547,6 +553,8 @@ bool MapEditorView::save()
     // A new or duplicated map gets its id now (saveNewMap reloads and picks a free one); a library map is
     // saved over its own file.
     auto& library = processor.library();
+    if (! isNew)
+        library.reload(); // so the lists show what other instances saved meanwhile
     if (const auto result = isNew ? library.saveNewMap (toSave) : library.saveMap (toSave); result.failed())
     {
         setStatus ("Could not save: " + result.getErrorMessage(), true);

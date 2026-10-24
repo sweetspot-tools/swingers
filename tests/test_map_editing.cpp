@@ -343,6 +343,46 @@ TEST_CASE ("saving a new map never overwrites a map another instance saved with 
     CHECK (f.tmp.dir.getChildFile ("maps/" + id + ".swmap.json").existsAsFile());
 }
 
+TEST_CASE ("the map editor reloads the library before New, Duplicate, Save and Import")
+{
+    ViewFixture f;
+    auto* selector = dynamic_cast<MapListBox*> (f.view->findChildWithID ("mapSelector"));
+    REQUIRE (selector != nullptr);
+    const auto listed = [selector] (const juce::String& name) {
+        for (int i = 0; i < selector->getNumItems(); ++i)
+            if (selector->getItemText (i) == name)
+                return true;
+        return false;
+    };
+
+    // Another instance saves a map after this one loaded.
+    {
+        MapLibrary other (f.tmp.dir);
+        DrumMap theirs;
+        theirs.id = "their-kit";
+        theirs.name = "Their Kit";
+        theirs.notes = { { 40, "Snare", 38, false } };
+        REQUIRE (other.saveMap (theirs).wasOk());
+    }
+    REQUIRE_FALSE (listed ("Their Kit"));
+
+    SECTION ("New") { button (*f.view, "new").onClick(); }
+    SECTION ("Duplicate") { button (*f.view, "duplicate").onClick(); }
+    SECTION ("Save")
+    {
+        f.view->setNoteName (38, "Changed");
+        REQUIRE (f.view->save());
+    }
+    SECTION ("Import") { f.view->importFile (fixture ("cubase_basic.xml")); }
+    SECTION ("the selector's list")
+    {
+        REQUIRE (selector->beforePopup != nullptr);
+        selector->beforePopup();
+    }
+
+    CHECK (listed ("Their Kit"));
+}
+
 TEST_CASE ("unsaved changes: Discard, Save and Cancel")
 {
     SECTION ("nothing to ask when nothing changed")

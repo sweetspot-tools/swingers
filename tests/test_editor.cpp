@@ -303,3 +303,39 @@ TEST_CASE ("processor stays usable after the editor is destroyed")
     CHECK (processor.channel() == 3);
     CHECK_FALSE (static_cast<bool> (processor.onStateChanged));
 }
+
+TEST_CASE ("a map saved by another instance shows up when the editor or the selector opens")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor writer (tmp.dir), reader (tmp.dir);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (reader.createEditor());
+    auto& compact = child<CompactPanel> (*editor, "compactPanel");
+    auto& fromBox = child<MapListBox> (compact, "fromBox");
+    auto& toBox = child<MapListBox> (compact, "toBox");
+    CHECK_FALSE (itemTexts (fromBox).contains ("Fresh Kit"));
+
+    DrumMap fresh;
+    fresh.id = "fresh-kit";
+    fresh.name = "Fresh Kit";
+    fresh.notes = { { 40, "Snare", 38, false } };
+    REQUIRE (writer.library().saveMap (fresh).wasOk());
+    CHECK_FALSE (itemTexts (fromBox).contains ("Fresh Kit")); // this instance has not looked yet
+
+    // The From / To list reloads right before it shows its items.
+    REQUIRE (toBox.beforePopup != nullptr);
+    toBox.beforePopup();
+    CHECK (itemTexts (fromBox).contains ("Fresh Kit"));
+    CHECK (itemTexts (toBox).contains ("Fresh Kit"));
+
+    // A newly opened editor reloads too.
+    DrumMap later = fresh;
+    later.id = "later-kit";
+    later.name = "Later Kit";
+    REQUIRE (writer.library().saveMap (later).wasOk());
+    editor.reset();
+    editor.reset (reader.createEditor());
+    CHECK (itemTexts (child<MapListBox> (child<CompactPanel> (*editor, "compactPanel"), "fromBox")).contains ("Later Kit"));
+}

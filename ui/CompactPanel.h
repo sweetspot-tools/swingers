@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MapListBox.h"
 #include "PluginProcessor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -85,7 +86,7 @@ private:
 
     SwingersProcessor& processor;
     CompactSilkscreen silkscreen;
-    juce::ComboBox fromBox, toBox;
+    MapListBox fromBox, toBox;
     ChannelCycle channelCycle;
     juce::TextButton editMappingButton { "Edit mapping" };
     ActivityLed led;

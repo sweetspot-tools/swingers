@@ -108,6 +108,14 @@ CompactPanel::CompactPanel (SwingersProcessor& p) : processor (p)
     };
     channelCycle.onChange = [this] (int channel) { processor.setChannel (channel); };
 
+    // Other instances may have saved maps since: reload right before a list shows its items.
+    const auto reloadLists = [this] {
+        processor.reloadLibrary(); // the editor refreshes this panel through onStateChanged
+        refresh();                 // and without an editor (tests)
+    };
+    fromBox.beforePopup = reloadLists;
+    toBox.beforePopup = reloadLists;
+
     editMappingButton.setTooltip ("Edit the exceptions of this pair");
     editMappingButton.onClick = [this] {
         if (onEditMapping)

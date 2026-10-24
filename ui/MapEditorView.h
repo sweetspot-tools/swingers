@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DrumMap.h"
+#include "MapListBox.h"
 #include "PluginProcessor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -109,7 +110,7 @@ private:
     bool statusError = false;
     std::array<juce::String, 128> gmNames;
 
-    juce::ComboBox selector;
+    MapListBox selector;
     std::vector<juce::String> selectorIds; // map id of item (id - 1), as listed when the selector was filled
     juce::TextEditor mapNameEditor;
     juce::TextButton newButton { "New" }, duplicateButton { "Duplicate" },
