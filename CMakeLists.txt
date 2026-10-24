@@ -19,7 +19,9 @@ endif()
 add_library(swingers_core INTERFACE)
 target_sources(swingers_core INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/core/DrumMap.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/CubaseImport.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/CubaseImport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PairOverrides.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ConversionTable.cpp)
 target_link_libraries(swingers_core INTERFACE
     juce::juce_core
     juce::juce_audio_basics)
@@ -74,6 +76,7 @@ target_sources(swingers_tests PRIVATE
     tests/test_smoke.cpp
     tests/test_drum_map.cpp
     tests/test_cubase_import.cpp
+    tests/test_conversion_table.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(swingers_tests PRIVATE plugin)
