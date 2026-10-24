@@ -466,6 +466,27 @@ TEST_CASE ("save adds .mid when the chosen name has no extension")
     CHECK (f.bar().reportLines().strings.getLast() == "Saved: renamed.mid");
 }
 
+TEST_CASE ("save refuses to replace an existing name.mid when .mid was added to the chosen name")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    Fixture f;
+    REQUIRE (f.bar().loadFile (f.input));
+    REQUIRE (f.bar().convert());
+
+    // The native prompt confirmed "renamed", not "renamed.mid".
+    const auto existing = f.files.dir.getChildFile ("renamed.mid");
+    REQUIRE (existing.replaceWithText ("keep me"));
+    CHECK_FALSE (f.bar().saveTo (f.files.dir.getChildFile ("renamed")));
+    CHECK (existing.loadFileAsString() == "keep me");
+    CHECK (f.bar().reportLines().strings.getLast() == "renamed.mid already exists: choose another name");
+    CHECK (f.bar().lastLineIsAmber());
+
+    // Chosen with its extension, the file was confirmed by the prompt: it is replaced.
+    REQUIRE (f.bar().saveTo (existing));
+    CHECK (existing.loadFileAsString() != "keep me");
+    CHECK_FALSE (f.bar().lastLineIsAmber());
+}
+
 TEST_CASE ("save refuses the source reached through a symlinked folder")
 {
     juce::ScopedJuceInitialiser_GUI gui;

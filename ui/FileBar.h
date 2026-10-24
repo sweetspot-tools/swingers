@@ -44,6 +44,7 @@ public:
 
     // The report as text, one entry per line (what is painted).
     juce::StringArray reportLines() const;
+    bool lastLineIsAmber() const; // the last report line is an error / warning (amber)
 
     // Where the wear must stay clear: the boxes, the controls and the report text (editor coordinates).
     static std::vector<juce::Rectangle<int>> wearKeepClear();

@@ -181,7 +181,9 @@ Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, gr
 - **Standalone:** sotto il pannello compatto la barra *Open MIDI → Convert → Save* e il resoconto. Non sovrascrive mai il
   file d'origine; propone `<nome>-<MappaArrivo>.mid`. *Convert* tiene il risultato in memoria e *Save* lo scrive; se dopo
   la conversione cambiano mappe, eccezioni o canale il risultato è **invalidato** (va rifatto *Convert*), così non si salva
-  mai una conversione vecchia. Un'apertura fallita conserva il file precedente.
+  mai una conversione vecchia. Un'apertura fallita conserva il file precedente. Se il nome scelto nel salvataggio non ha
+  estensione si scrive `<nome>.mid`; se `<nome>.mid` esiste già il salvataggio si rifiuta con un messaggio ambra
+  ("<nome>.mid already exists: choose another name"), perché la conferma nativa riguardava `<nome>`, non `<nome>.mid`.
 
 ## 6. Errori
 
@@ -231,6 +233,4 @@ di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 
 ### Limiti noti della prima versione (da valutare)
 
-- Nello standalone, se il nome scelto nel salvataggio non ha estensione, la richiesta di conferma nativa controlla `nome`
-  ma si scrive `nome.mid`: un `nome.mid` esistente verrebbe sovrascritto senza avviso.
 - Il caso limite del note-on ripetuto (§4.1).

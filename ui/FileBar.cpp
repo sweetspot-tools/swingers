@@ -208,7 +208,8 @@ juce::File FileBar::suggestedOutput() const
 
 bool FileBar::saveTo (const juce::File& chosen)
 {
-    const auto file = chosen.getFileExtension().isEmpty() ? chosen.withFileExtension ("mid") : chosen;
+    const bool extensionAdded = chosen.getFileExtension().isEmpty();
+    const auto file = extensionAdded ? chosen.withFileExtension ("mid") : chosen;
 
     if (! converted)
     {
@@ -223,6 +224,14 @@ bool FileBar::saveTo (const juce::File& chosen)
     if (isSameFile (file, source))
     {
         status = Line { "The output file must be different from the input file", true };
+        repaint();
+        return false;
+    }
+
+    // The native prompt asked about the name as chosen, not about "<name>.mid": never replace that one unasked.
+    if (extensionAdded && file.exists())
+    {
+        status = Line { file.getFileName() + " already exists: choose another name", true };
         repaint();
         return false;
     }
@@ -288,6 +297,13 @@ juce::StringArray FileBar::reportLines() const
     if (status)
         lines.add (status->text);
     return lines;
+}
+
+bool FileBar::lastLineIsAmber() const
+{
+    if (status)
+        return status->amber;
+    return ! summary.empty() && summary.back().amber;
 }
 
 std::vector<juce::Rectangle<int>> FileBar::wearKeepClear()
