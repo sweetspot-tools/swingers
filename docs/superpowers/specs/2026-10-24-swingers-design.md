@@ -108,6 +108,11 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 ambra, EDIT MAPPING, riga avvisi in ambra); patchbay ed editor delle mappe a 900 × 600 (la finestra del plugin si
 allarga); standalone 520 × 330 con riquadri FILE e REPORT.
 
+**Usura come nei Fairy Tapes** (richiesta dell'utente del 2026-10-24): grana fine del pannello, graffi chiari, macchie opache
+a bordo netto, pezzi di nastro di carta scritti a mano (Homemade Apple, Apache-2.0, incluso nel plugin) con residui di
+colla, viti agli angoli. Tutto da un seme salvato nel progetto; nastro e macchie non coprono mai i controlli e nessun
+elemento dell'usura cattura i clic. Nella prima versione l'intensità è fissa (scelta Off/Light/Heavy: decisione aperta).
+
 Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, grana, serigrafia; vedi
 `fairy-tapes/docs/DESIGN_SYSTEM.md`), ridisegnato in JUCE.
 
@@ -158,5 +163,8 @@ Live che legga le stesse mappe), export verso Cubase, varianti numerate di una s
 di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 
 ## 9. Decisioni aperte
+
+- Intensità dell'usura regolabile (Off, Light, Heavy) come nei Fairy Tapes: dove metterla, visto che Swingers non ha un
+  retro con Settings.
 
 - Come si distribuiscono i binari (firma e notarizzazione su Mac, installer): da decidere prima del primo rilascio.
