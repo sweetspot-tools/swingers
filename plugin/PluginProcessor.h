@@ -6,7 +6,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 
 namespace swingers
 {
@@ -16,7 +18,7 @@ class SwingersProcessor : public juce::AudioProcessor
 {
 public:
     explicit SwingersProcessor (juce::File userRoot = MapLibrary::defaultUserRoot());
-    ~SwingersProcessor() override = default;
+    ~SwingersProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -41,7 +43,11 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // Message thread only (as are selectMaps, setChannel, applyOverrides and setStateInformation).
+    // Threading: library(), current(), selectMaps, setChannel, applyOverrides and onStateChanged are
+    // message-thread only (onStateChanged is always called there). The audio thread touches only the
+    // remapper. getStateInformation/setStateInformation may be called by the host on any thread: they only
+    // exchange a serialized snapshot under stateLock_ (never taken by the audio thread); setStateInformation
+    // applies the new state on the message thread.
     MapLibrary& library() { return library_; }
     LiveRemapper& remapper() { return remapper_; }
     const ResolvedMaps& current() const { return current_; }
@@ -58,10 +64,17 @@ private:
     void rebuild(const PairOverrides* forcedOverrides = nullptr, const juce::String& extraWarning = {});
     void notifyChanged();
 
+    void applyLoadedState(PluginState loaded);
+    void refreshSnapshot();
+
     MapLibrary library_;
     LiveRemapper remapper_;
     PluginState state_;
     ResolvedMaps current_;
+
+    juce::CriticalSection stateLock_;
+    juce::MemoryBlock stateSnapshot_; // guarded by stateLock_
+    std::shared_ptr<std::atomic<bool>> alive_ { std::make_shared<std::atomic<bool>>(true) };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SwingersProcessor)
 };

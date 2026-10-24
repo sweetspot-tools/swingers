@@ -9,6 +9,18 @@ SwingersProcessor::SwingersProcessor(juce::File userRoot)
     rebuild();
 }
 
+SwingersProcessor::~SwingersProcessor()
+{
+    alive_->store(false);
+}
+
+void SwingersProcessor::refreshSnapshot()
+{
+    auto block = serialize(state_);
+    const juce::ScopedLock lock(stateLock_);
+    stateSnapshot_ = std::move(block);
+}
+
 void SwingersProcessor::rebuild(const PairOverrides* forcedOverrides, const juce::String& extraWarning)
 {
     current_ = resolve(state_, library_);
@@ -28,6 +40,7 @@ void SwingersProcessor::rebuild(const PairOverrides* forcedOverrides, const juce
 
     remapper_.setTable(ConversionTable::build(current_.from, current_.to, &current_.overrides));
     remapper_.setChannel(state_.channel);
+    refreshSnapshot();
 }
 
 void SwingersProcessor::notifyChanged()
@@ -57,9 +70,16 @@ void SwingersProcessor::applyOverrides(const PairOverrides& overrides)
     state_.overridesCopy = overrides;
 
     if (saved.wasOk())
+    {
         rebuild();
+    }
     else
-        rebuild(&overrides, "Could not save the exceptions: " + saved.getErrorMessage());
+    {
+        const auto message = "Could not save the exceptions: " + saved.getErrorMessage();
+        // Keep the in-memory exceptions only when they belong to the pair in use (same check as resolve).
+        const bool samePair = overrides.fromId == current_.from.id && overrides.toId == current_.to.id;
+        rebuild(samePair ? &overrides : nullptr, message);
+    }
 
     notifyChanged();
 }
@@ -90,18 +110,42 @@ void SwingersProcessor::changeProgramName(int, const juce::String&) {}
 
 void SwingersProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    destData = serialize(state_);
+    const juce::ScopedLock lock(stateLock_);
+    destData = stateSnapshot_;
+}
+
+void SwingersProcessor::applyLoadedState(PluginState loaded)
+{
+    state_ = std::move(loaded);
+    rebuild();
+    notifyChanged();
 }
 
 void SwingersProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    auto loaded = deserialize(data, sizeInBytes > 0 ? static_cast<size_t>(sizeInBytes) : 0);
+    const auto size = sizeInBytes > 0 ? static_cast<size_t>(sizeInBytes) : size_t { 0 };
+    auto loaded = deserialize(data, size);
     if (! loaded)
-        return; // not our state: keep the defaults / what we have
+        return; // not our state: keep what we have
 
-    state_ = std::move(*loaded);
-    rebuild();
-    notifyChanged();
+    {
+        // An immediate getStateInformation returns what the host just gave us.
+        const juce::ScopedLock lock(stateLock_);
+        stateSnapshot_ = juce::MemoryBlock(data, size);
+    }
+
+    auto* manager = juce::MessageManager::getInstanceWithoutCreating();
+    if (manager == nullptr || manager->isThisTheMessageThread())
+    {
+        applyLoadedState(std::move(*loaded));
+        return;
+    }
+
+    // Off the message thread: apply there, unless the processor is gone by then.
+    juce::MessageManager::callAsync([this, alive = alive_, state = std::move(*loaded)]() mutable {
+        if (alive->load())
+            applyLoadedState(std::move(state));
+    });
 }
 
 } // namespace swingers

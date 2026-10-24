@@ -236,3 +236,60 @@ TEST_CASE ("processor state round trip carries copies to another computer")
     CHECK (b.current().from.id == "my-kit"); // untouched
     CHECK (changes == 1);
 }
+
+TEST_CASE ("state survives a second hop through a computer without the map")
+{
+    TempRoot tmpA, tmpB, tmpC;
+    {
+        MapLibrary writer (tmpA.dir);
+        REQUIRE (writer.saveMap (kit ("my-kit", "My Kit", 23, 46)).wasOk());
+    }
+
+    SwingersProcessor a (tmpA.dir);
+    a.selectMaps ("my-kit", "general-midi");
+    juce::MemoryBlock fromA;
+    a.getStateInformation (fromA);
+
+    SwingersProcessor b (tmpB.dir);
+    b.setStateInformation (fromA.getData(), (int) fromA.getSize());
+    juce::MemoryBlock fromB;
+    b.getStateInformation (fromB);
+
+    SwingersProcessor c (tmpC.dir);
+    c.setStateInformation (fromB.getData(), (int) fromB.getSize());
+
+    CHECK (c.current().from.id == "my-kit");
+    CHECK (c.current().warnings.size() == 1);
+
+    juce::AudioBuffer<float> audio (1, 32);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 23, (juce::uint8) 100), 0);
+    c.processBlock (audio, midi);
+    CHECK (firstNoteOn (midi) == 46);
+}
+
+TEST_CASE ("failed save keeps overrides in memory only for the pair in use")
+{
+    TempRoot tmp;
+    REQUIRE (tmp.dir.getParentDirectory().getChildFile (tmp.dir.getFileName() + ".file").replaceWithText ("x"));
+    const auto blocker = tmp.dir.getParentDirectory().getChildFile (tmp.dir.getFileName() + ".file");
+    struct Cleanup { juce::File f; ~Cleanup() { f.deleteFile(); } } cleanup { blocker };
+
+    SwingersProcessor processor (blocker); // the root is a file: saving cannot work
+
+    PairOverrides other;
+    other.fromId = "x";
+    other.toId = "y";
+    other.connect (36, 38);
+    processor.applyOverrides (other);
+    CHECK (processor.current().overrides.empty());
+    CHECK (processor.current().warnings.size() == 1);
+
+    PairOverrides mine;
+    mine.fromId = kGeneralMidiId;
+    mine.toId = kGeneralMidiId;
+    mine.connect (36, 38);
+    processor.applyOverrides (mine);
+    CHECK (processor.current().overrides.direct.at (36) == 38);
+    CHECK (processor.current().warnings.size() == 1);
+}
