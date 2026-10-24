@@ -1,0 +1,12 @@
+[submodule "vendors/JUCE"]
+	path = vendors/JUCE
+	url = https://github.com/juce-framework/JUCE.git
+	shallow = true
+[submodule "vendors/Catch2"]
+	path = vendors/Catch2
+	url = https://github.com/catchorg/Catch2.git
+	shallow = true
+[submodule "vendors/clap-juce-extensions"]
+	path = vendors/clap-juce-extensions
+	url = https://github.com/free-audio/clap-juce-extensions.git
+	shallow = true

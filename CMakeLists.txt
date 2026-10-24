@@ -1,0 +1,85 @@
+cmake_minimum_required(VERSION 3.22)
+
+project(Swingers VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_subdirectory(vendors/JUCE)
+add_subdirectory(vendors/clap-juce-extensions EXCLUDE_FROM_ALL)
+add_subdirectory(vendors/Catch2)
+
+set(SWINGERS_FORMATS VST3 Standalone)
+if(APPLE)
+    list(APPEND SWINGERS_FORMATS AU)
+endif()
+
+# Pure engine: sources under core/ are added here by later tasks.
+add_library(swingers_core INTERFACE)
+target_link_libraries(swingers_core INTERFACE
+    juce::juce_core
+    juce::juce_audio_basics)
+target_include_directories(swingers_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+
+juce_add_plugin(Swingers
+    COMPANY_NAME "Sweetspot Tools"
+    PRODUCT_NAME "Swingers"
+    BUNDLE_ID com.sweetspot-tools.swingers
+    PLUGIN_MANUFACTURER_CODE Swtl
+    PLUGIN_CODE Swng
+    FORMATS ${SWINGERS_FORMATS}
+    IS_MIDI_EFFECT TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_SYNTH FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+
+target_sources(Swingers PRIVATE
+    plugin/PluginProcessor.cpp)
+
+target_include_directories(Swingers PRIVATE plugin)
+
+target_compile_definitions(Swingers PUBLIC
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0)
+
+target_link_libraries(Swingers
+    PRIVATE
+        swingers_core
+        juce::juce_audio_utils
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
+clap_juce_extensions_plugin(TARGET Swingers
+    CLAP_ID "com.sweetspot-tools.swingers"
+    CLAP_FEATURES utility)
+
+# Tests: the engine is plain C++, the smoke test also builds the processor.
+juce_add_console_app(swingers_tests
+    PRODUCT_NAME "swingers_tests")
+
+target_sources(swingers_tests PRIVATE
+    tests/test_smoke.cpp
+    plugin/PluginProcessor.cpp)
+
+target_include_directories(swingers_tests PRIVATE plugin)
+
+target_compile_definitions(swingers_tests PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0)
+
+target_link_libraries(swingers_tests
+    PRIVATE
+        swingers_core
+        juce::juce_audio_processors
+        juce::juce_recommended_config_flags
+        Catch2::Catch2WithMain)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendors/Catch2/extras)
+include(CTest)
+include(Catch)
+catch_discover_tests(swingers_tests)
