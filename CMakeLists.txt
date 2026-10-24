@@ -49,11 +49,19 @@ juce_add_plugin(Swingers
 juce_add_binary_data(SwingersMaps SOURCES
     resources/maps/general-midi.swmap.json)
 
+# Rack look-and-feel and the editor: shared by the plugin, the tests and the render tool.
+set(SWINGERS_UI_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/RackLookAndFeel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/RackBackground.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/CompactPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin/PluginEditor.cpp)
+
 target_sources(Swingers PRIVATE
     plugin/PluginState.cpp
-    plugin/PluginProcessor.cpp)
+    plugin/PluginProcessor.cpp
+    ${SWINGERS_UI_SOURCES})
 
-target_include_directories(Swingers PRIVATE plugin)
+target_include_directories(Swingers PRIVATE plugin ui)
 
 target_compile_definitions(Swingers PUBLIC
     JUCE_WEB_BROWSER=0
@@ -87,13 +95,16 @@ target_sources(swingers_tests PRIVATE
     tests/test_file_converter.cpp
     tests/test_map_library.cpp
     tests/test_plugin_state.cpp
+    tests/test_editor.cpp
     plugin/PluginState.cpp
-    plugin/PluginProcessor.cpp)
+    plugin/PluginProcessor.cpp
+    ${SWINGERS_UI_SOURCES})
 
-target_include_directories(swingers_tests PRIVATE plugin)
+target_include_directories(swingers_tests PRIVATE plugin ui)
 
 target_compile_definitions(swingers_tests PRIVATE
     SWINGERS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+    JUCE_MODAL_LOOPS_PERMITTED=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0)
 
@@ -105,6 +116,31 @@ target_link_libraries(swingers_tests
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
         Catch2::Catch2WithMain)
+
+# Renders the editor to a PNG (docs/screenshots). Not part of the default build.
+juce_add_console_app(swingers_render
+    PRODUCT_NAME "swingers_render")
+set_target_properties(swingers_render PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+target_sources(swingers_render PRIVATE
+    tools/render_editor.cpp
+    plugin/PluginState.cpp
+    plugin/PluginProcessor.cpp
+    ${SWINGERS_UI_SOURCES})
+
+target_include_directories(swingers_render PRIVATE plugin ui)
+
+target_compile_definitions(swingers_render PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0)
+
+target_link_libraries(swingers_render
+    PRIVATE
+        swingers_core
+        SwingersMaps
+        juce::juce_audio_processors
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendors/Catch2/extras)
 include(CTest)

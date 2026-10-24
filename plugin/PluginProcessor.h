@@ -51,6 +51,7 @@ public:
     MapLibrary& library() { return library_; }
     LiveRemapper& remapper() { return remapper_; }
     const ResolvedMaps& current() const { return current_; }
+    int channel() const { return state_.channel; } // 0 = all, 1..16
 
     void selectMaps(const juce::String& fromId, const juce::String& toId);
     void setChannel(int channel);

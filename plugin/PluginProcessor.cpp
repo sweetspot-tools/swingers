@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include "PluginEditor.h"
+
 namespace swingers
 {
 
@@ -93,8 +95,8 @@ void SwingersProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     remapper_.process(midi);
 }
 
-juce::AudioProcessorEditor* SwingersProcessor::createEditor() { return nullptr; }
-bool SwingersProcessor::hasEditor() const { return false; }
+juce::AudioProcessorEditor* SwingersProcessor::createEditor() { return new SwingersEditor(*this); }
+bool SwingersProcessor::hasEditor() const { return true; }
 
 const juce::String SwingersProcessor::getName() const { return "Swingers"; }
 bool SwingersProcessor::acceptsMidi() const { return true; }
