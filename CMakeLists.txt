@@ -17,6 +17,7 @@ endif()
 
 # Pure engine: sources under core/ are added here by later tasks.
 add_library(swingers_core INTERFACE)
+target_sources(swingers_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core/DrumMap.cpp)
 target_link_libraries(swingers_core INTERFACE
     juce::juce_core
     juce::juce_audio_basics)
@@ -36,6 +37,10 @@ juce_add_plugin(Swingers
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
+# Bundled drum maps (BinaryData namespace).
+juce_add_binary_data(SwingersMaps SOURCES
+    resources/maps/general-midi.swmap.json)
+
 target_sources(Swingers PRIVATE
     plugin/PluginProcessor.cpp)
 
@@ -49,6 +54,7 @@ target_compile_definitions(Swingers PUBLIC
 target_link_libraries(Swingers
     PRIVATE
         swingers_core
+        SwingersMaps
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -64,6 +70,7 @@ juce_add_console_app(swingers_tests
 
 target_sources(swingers_tests PRIVATE
     tests/test_smoke.cpp
+    tests/test_drum_map.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(swingers_tests PRIVATE plugin)
@@ -75,8 +82,10 @@ target_compile_definitions(swingers_tests PRIVATE
 target_link_libraries(swingers_tests
     PRIVATE
         swingers_core
+        SwingersMaps
         juce::juce_audio_processors
         juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags
         Catch2::Catch2WithMain)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendors/Catch2/extras)
