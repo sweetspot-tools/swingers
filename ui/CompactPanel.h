@@ -80,7 +80,7 @@ public:
 
 private:
     void timerCallback() override;
-    void fillMapBox (juce::ComboBox&) const;
+    void fillMapBox (juce::ComboBox&);
     void selectCurrentMaps();
     void updateWarnings();
 
@@ -93,6 +93,7 @@ private:
     juce::Label warningsLabel;
 
     juce::String listSignature;
+    std::vector<juce::String> itemIds; // map id of item (id - 1) in both boxes, as listed when they were filled
     uint32_t seenActivity = 0;
     uint32_t lastHitMs = 0;
     bool hasHit = false;

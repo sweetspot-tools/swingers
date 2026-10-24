@@ -94,17 +94,16 @@ CompactPanel::CompactPanel (SwingersProcessor& p) : processor (p)
 
     channelCycle.setTooltip ("MIDI channel to convert (click to change): ALL or 1-16");
 
+    // By the ids listed when the boxes were filled: the library may have reloaded since.
     fromBox.onChange = [this] {
         const auto index = fromBox.getSelectedId() - 1;
-        const auto& maps = processor.library().maps();
-        if (index >= 0 && index < (int) maps.size())
-            processor.chooseMap (SwingersProcessor::Side::from, maps[(size_t) index].id);
+        if (index >= 0 && index < (int) itemIds.size())
+            processor.chooseMap (SwingersProcessor::Side::from, itemIds[(size_t) index]);
     };
     toBox.onChange = [this] {
         const auto index = toBox.getSelectedId() - 1;
-        const auto& maps = processor.library().maps();
-        if (index >= 0 && index < (int) maps.size())
-            processor.chooseMap (SwingersProcessor::Side::to, maps[(size_t) index].id);
+        if (index >= 0 && index < (int) itemIds.size())
+            processor.chooseMap (SwingersProcessor::Side::to, itemIds[(size_t) index]);
     };
     channelCycle.onChange = [this] (int channel) { processor.setChannel (channel); };
 
@@ -147,13 +146,17 @@ CompactPanel::~CompactPanel()
     stopTimer();
 }
 
-void CompactPanel::fillMapBox (juce::ComboBox& box) const
+void CompactPanel::fillMapBox (juce::ComboBox& box)
 {
     box.clear (juce::dontSendNotification);
 
     const auto& maps = processor.library().maps();
+    itemIds.clear();
     for (size_t i = 0; i < maps.size(); ++i)
+    {
         box.addItem (maps[i].name.isNotEmpty() ? maps[i].name : maps[i].id, (int) i + 1);
+        itemIds.push_back (maps[i].id);
+    }
 
     const auto& issues = processor.library().issues();
     bool separated = false;
@@ -176,10 +179,9 @@ void CompactPanel::selectCurrentMaps()
 {
     // A map that is only a copy saved in the project is not in the lists: show its name anyway.
     const auto select = [this] (juce::ComboBox& box, const DrumMap& map) {
-        const auto& maps = processor.library().maps();
-        for (size_t i = 0; i < maps.size(); ++i)
+        for (size_t i = 0; i < itemIds.size(); ++i)
         {
-            if (maps[i].id == map.id)
+            if (itemIds[i] == map.id)
             {
                 box.setSelectedId ((int) i + 1, juce::dontSendNotification);
                 return;

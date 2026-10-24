@@ -339,3 +339,29 @@ TEST_CASE ("a map saved by another instance shows up when the editor or the sele
     editor.reset (reader.createEditor());
     CHECK (itemTexts (child<MapListBox> (child<CompactPanel> (*editor, "compactPanel"), "fromBox")).contains ("Later Kit"));
 }
+
+TEST_CASE ("the From / To lists follow their own ids when the library reloads behind them")
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    prepareRoot (tmp.dir);
+    SwingersProcessor processor (tmp.dir);
+    CompactPanel panel (processor);
+    auto& fromBox = child<juce::ComboBox> (panel, "fromBox");
+    const auto testKitItem = idOfItem (fromBox, "Test Kit");
+
+    // Another instance adds a map that sorts first; this library reloads (e.g. the map editor's New) but the
+    // panel has not refilled its lists yet.
+    {
+        MapLibrary other (tmp.dir);
+        DrumMap first;
+        first.id = "aaa-kit";
+        first.name = "AAA Kit";
+        first.notes = { { 40, "Snare", 38, false } };
+        REQUIRE (other.saveMap (first).wasOk());
+    }
+    processor.library().reload();
+
+    fromBox.setSelectedId (testKitItem, juce::sendNotificationSync);
+    CHECK (processor.current().from.id == "test-kit");
+}
