@@ -1,7 +1,5 @@
 #include "NoteRouter.h"
 
-#include <algorithm>
-
 namespace swingers
 {
 namespace
@@ -24,10 +22,12 @@ void NoteRouter::reset()
 
 NoteRouter::Outcome NoteRouter::route (juce::MidiMessage& m, const ConversionTable& table, int channel)
 {
+    jassert (channel >= 0 && channel <= 16);
+
     const int size = m.getRawDataSize();
     const auto* raw = m.getRawData();
 
-    if (size != 3 || raw == nullptr)
+    if (size != 3)
         return Outcome::Pass;
 
     const int kind = raw[0] & 0xF0;
@@ -43,9 +43,17 @@ NoteRouter::Outcome NoteRouter::route (juce::MidiMessage& m, const ConversionTab
 
     const bool excluded = channel >= 1 && channel <= 16 && midiChannel != channel - 1;
 
-    // A note-off or aftertouch for a note we are holding follows it even if the channel filter
-    // changed meanwhile, so nothing is left hanging.
-    if (excluded && (isNoteOn || held == kNone))
+    // A note-on on an excluded channel passes untouched, but is remembered as "held on itself" so that
+    // its note-off still goes out unchanged even if the filter widens meanwhile (no hanging note,
+    // no spurious off on the table's target). A note-off or aftertouch for any held note follows
+    // held_ even if the filter changed, so nothing is left hanging.
+    if (excluded && isNoteOn)
+    {
+        held = (int16_t) note;
+        return Outcome::Pass;
+    }
+
+    if (excluded && held == kNone)
         return Outcome::Pass;
 
     int target;
@@ -70,6 +78,10 @@ NoteRouter::Outcome NoteRouter::route (juce::MidiMessage& m, const ConversionTab
 
     if (target < 0)
         return Outcome::Dropped;
+
+    // Excluded channel with a self-held note: the message stays identical.
+    if (excluded && target == note)
+        return Outcome::Pass;
 
     m.setNoteNumber (target);
     return Outcome::Remapped;

@@ -2,6 +2,10 @@
 
 #include "NoteRouter.h"
 
+#include <cstring>
+#include <initializer_list>
+#include <utility>
+
 using namespace swingers;
 using Outcome = NoteRouter::Outcome;
 
@@ -260,4 +264,36 @@ TEST_CASE ("reset forgets held notes")
     auto noteOff = off (23);
     router.route (noteOff, tableWith ({ { 23, 30 } }), 0);
     CHECK (noteOff.getNoteNumber() == 30);
+}
+
+TEST_CASE ("a note on passed by the channel filter keeps its off unchanged when the filter widens")
+{
+    NoteRouter router;
+    const auto table = tableWith ({ { 23, 26 } });
+
+    auto noteOn = on (23, 100, 1);
+    CHECK (router.route (noteOn, table, 10) == Outcome::Pass);
+    CHECK (noteOn.getNoteNumber() == 23);
+
+    auto noteOff = off (23, 1);
+    router.route (noteOff, table, 0);
+    CHECK (noteOff.getNoteNumber() == 23);
+
+    // The entry is cleared: the next off goes through the table again.
+    auto later = off (23, 1);
+    router.route (later, table, 0);
+    CHECK (later.getNoteNumber() == 26);
+}
+
+TEST_CASE ("an off on an excluded channel for a self-held note passes untouched")
+{
+    NoteRouter router;
+    const auto table = tableWith ({ { 23, 26 } });
+
+    auto noteOn = on (23, 100, 1);
+    router.route (noteOn, table, 10);
+
+    auto noteOff = off (23, 1);
+    CHECK (router.route (noteOff, table, 10) == Outcome::Pass);
+    CHECK (noteOff.getNoteNumber() == 23);
 }
