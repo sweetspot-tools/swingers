@@ -37,7 +37,9 @@ struct ResolvedMaps
     juce::StringArray warnings;
 };
 
-// The library version of a map wins; otherwise the copy saved in the project (with a warning);
-// otherwise General MIDI. Overrides: the library pair file if there is one, otherwise the copy.
+// A map: the library version when it is the same as the copy saved in the project (or there is no copy); the
+// copy when the library has none or a different map under that id (with a warning); otherwise General MIDI
+// (with a warning). Overrides: the copy when there is no pair file or the pair file differs (with a warning),
+// otherwise the pair file.
 ResolvedMaps resolve (const PluginState&, const MapLibrary&);
 } // namespace swingers

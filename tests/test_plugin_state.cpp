@@ -120,10 +120,34 @@ TEST_CASE ("missing map without a copy falls back to General MIDI")
 
     const auto resolved = resolve (state, library);
     CHECK (resolved.from.id == kGeneralMidiId);
+    REQUIRE (resolved.warnings.size() == 1);
+    CHECK (resolved.warnings[0] == "Map 'gone' not found and no copy in the project: using General MIDI");
+}
+
+TEST_CASE ("a library map that differs from the project's copy loses to the copy, with a warning")
+{
+    TempRoot tmp;
+    MapLibrary library (tmp.dir);
+    REQUIRE (library.saveMap (kit ("my-kit", "My Kit", 23, 38)).wasOk()); // same id, other content
+
+    PluginState state;
+    state.fromId = "my-kit";
+    state.fromCopy = kit ("my-kit", "My Kit", 23, 46);
+
+    auto resolved = resolve (state, library);
+    CHECK (resolved.from.gmVoiceOf (23) == 46);
+    REQUIRE (resolved.warnings.size() == 1);
+    CHECK (resolved.warnings[0]
+           == "Map 'My Kit' on this computer differs from the copy saved in the project: using the project's copy");
+
+    // The same content: the library version, silently.
+    state.fromCopy = kit ("my-kit", "My Kit", 23, 38);
+    resolved = resolve (state, library);
+    CHECK (resolved.from.gmVoiceOf (23) == 38);
     CHECK (resolved.warnings.isEmpty());
 }
 
-TEST_CASE ("library overrides win over the copy, the copy is used when there is no pair file")
+TEST_CASE ("the project's overrides win over a different library pair file, with a warning")
 {
     TempRoot tmp;
     MapLibrary library (tmp.dir);
@@ -137,12 +161,65 @@ TEST_CASE ("library overrides win over the copy, the copy is used when there is 
     copy.connect (36, 38);
     state.overridesCopy = copy;
 
-    CHECK (resolve (state, library).overrides.direct.at (36) == 38);
+    // No pair file: the copy, silently.
+    auto resolved = resolve (state, library);
+    CHECK (resolved.overrides.direct.at (36) == 38);
+    CHECK (resolved.warnings.isEmpty());
 
+    // The same pair file: silently.
+    REQUIRE (library.saveOverrides (copy).wasOk());
+    resolved = resolve (state, library);
+    CHECK (resolved.overrides.direct.at (36) == 38);
+    CHECK (resolved.warnings.isEmpty());
+
+    // A different pair file: the copy, with a warning.
     PairOverrides saved = copy;
     saved.connect (36, 40);
     REQUIRE (library.saveOverrides (saved).wasOk());
-    CHECK (resolve (state, library).overrides.direct.at (36) == 40);
+    resolved = resolve (state, library);
+    CHECK (resolved.overrides.direct.at (36) == 38);
+    REQUIRE (resolved.warnings.size() == 1);
+    CHECK (resolved.warnings[0]
+           == "Exceptions for 'General MIDI' to 'General MIDI' on this computer differ from the copy saved in the "
+              "project: using the project's copy");
+}
+
+TEST_CASE ("choosing a map in the selector drops that side's project copy")
+{
+    TempRoot tmp;
+    {
+        MapLibrary writer (tmp.dir);
+        REQUIRE (writer.saveMap (kit ("my-kit", "My Kit", 23, 46)).wasOk());
+        REQUIRE (writer.saveMap (kit ("your-kit", "Your Kit", 40, 38)).wasOk());
+    }
+
+    SwingersProcessor processor (tmp.dir);
+    processor.selectMaps ("my-kit", "your-kit");
+    CHECK (processor.current().warnings.isEmpty());
+
+    // Another instance changes both maps; this one reloads: the project's copies win.
+    {
+        MapLibrary writer (tmp.dir);
+        REQUIRE (writer.saveMap (kit ("my-kit", "My Kit", 23, 38)).wasOk());
+        REQUIRE (writer.saveMap (kit ("your-kit", "Your Kit", 40, 46)).wasOk());
+    }
+    processor.reloadLibrary();
+    CHECK (processor.current().from.gmVoiceOf (23) == 46);
+    CHECK (processor.current().to.gmVoiceOf (40) == 38);
+    CHECK (processor.current().warnings.size() == 2);
+
+    // The user picks My Kit again in From: the library version, To keeps its copy.
+    int changes = 0;
+    processor.onStateChanged = [&] { ++changes; };
+    processor.chooseMap (SwingersProcessor::Side::from, "my-kit");
+    CHECK (changes == 1);
+    CHECK (processor.current().from.gmVoiceOf (23) == 38);
+    CHECK (processor.current().to.gmVoiceOf (40) == 38);
+    CHECK (processor.current().warnings.size() == 1);
+
+    processor.chooseMap (SwingersProcessor::Side::to, "your-kit");
+    CHECK (processor.current().to.gmVoiceOf (40) == 46);
+    CHECK (processor.current().warnings.isEmpty());
 }
 
 TEST_CASE ("processor remaps in processBlock")

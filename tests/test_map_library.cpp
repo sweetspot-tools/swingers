@@ -142,7 +142,15 @@ TEST_CASE ("a map with an invalid id is reported")
     CHECK (library.issues()[0].message.containsIgnoreCase ("invalid id"));
 }
 
-TEST_CASE ("second import of the same name gets -2")
+bool isFreshIdOf (const juce::String& id, const juce::String& slug)
+{
+    // <slug>-<4 lowercase hex digits>
+    if (! id.startsWith (slug + "-") || id.length() != slug.length() + 5)
+        return false;
+    return id.getLastCharacters (4).containsOnly ("0123456789abcdef");
+}
+
+TEST_CASE ("imports get the slug of the name plus a random suffix")
 {
     TempRoot tmp;
     MapLibrary library (tmp.dir);
@@ -151,14 +159,81 @@ TEST_CASE ("second import of the same name gets -2")
     REQUIRE (library.importCubase (fixture ("cubase_basic.xml"), first).wasOk());
     REQUIRE (library.importCubase (fixture ("cubase_basic.xml"), second).wasOk());
 
-    CHECK (first == "test-kit");
-    CHECK (second == "test-kit-2");
-    CHECK (tmp.dir.getChildFile ("maps/test-kit.swmap.json").existsAsFile());
-    CHECK (tmp.dir.getChildFile ("maps/test-kit-2.swmap.json").existsAsFile());
-    CHECK (library.find ("test-kit-2") != nullptr);
-    CHECK (library.uniqueId ("test-kit") == "test-kit-3");
+    CHECK (isFreshIdOf (first, "test-kit"));
+    CHECK (isFreshIdOf (second, "test-kit"));
+    CHECK (first != second);
+    CHECK (tmp.dir.getChildFile ("maps/" + first + ".swmap.json").existsAsFile());
+    CHECK (tmp.dir.getChildFile ("maps/" + second + ".swmap.json").existsAsFile());
+    CHECK (library.find (second) != nullptr);
     CHECK (library.uniqueId ("general-midi") == "general-midi-2");
     CHECK (library.uniqueId ("fresh") == "fresh");
+}
+
+TEST_CASE ("a new map gets its id at the first save: slug of the name and a random suffix")
+{
+    TempRoot tmp;
+    MapLibrary library (tmp.dir);
+
+    auto map = library.newMap();
+    CHECK (map.id.isEmpty());
+    CHECK (map.name == "New map");
+    CHECK (map.notes.empty());
+
+    map.name = "Studio Kit!";
+    REQUIRE (library.saveNewMap (map).wasOk());
+    CHECK (isFreshIdOf (map.id, "studio-kit"));
+    CHECK (library.find (map.id) != nullptr);
+    CHECK (tmp.dir.getChildFile ("maps/" + map.id + ".swmap.json").existsAsFile());
+
+    auto twin = library.newMap();
+    twin.name = "Studio Kit!";
+    REQUIRE (library.saveNewMap (twin).wasOk());
+    CHECK (isFreshIdOf (twin.id, "studio-kit"));
+    CHECK (twin.id != map.id);
+
+    auto symbols = library.newMap();
+    symbols.name = juce::String::fromUTF8 ("\xe2\x98\x85");
+    REQUIRE (library.saveNewMap (symbols).wasOk());
+    CHECK (isFreshIdOf (symbols.id, "map"));
+
+    auto copy = library.duplicate (kGeneralMidiId);
+    CHECK (copy.id.isEmpty());
+    CHECK (copy.name == "General MIDI (copy)");
+    REQUIRE (library.saveNewMap (copy).wasOk());
+    CHECK (isFreshIdOf (copy.id, "general-midi-copy"));
+    CHECK_FALSE (library.isBundled (copy.id));
+}
+
+TEST_CASE ("saving a new map reloads and draws again when the id is taken")
+{
+    TempRoot tmp;
+    MapLibrary library (tmp.dir);
+    library.setRandomSeed (1234);
+
+    // What the first draw will be.
+    MapLibrary probe (tmp.dir);
+    probe.setRandomSeed (1234);
+    const auto taken = probe.freshId ("Studio Kit");
+    REQUIRE (isFreshIdOf (taken, "studio-kit"));
+
+    // Another instance saves a map with that id after `library` loaded.
+    {
+        MapLibrary other (tmp.dir);
+        REQUIRE (other.saveMap (userMap (taken, "Other")).wasOk());
+    }
+
+    auto map = library.newMap();
+    map.name = "Studio Kit";
+    REQUIRE (library.saveNewMap (map).wasOk());
+    CHECK (isFreshIdOf (map.id, "studio-kit"));
+    CHECK (map.id != taken);
+    CHECK (library.find (taken) != nullptr); // reloaded: the other instance's map is listed too
+
+    MapLibrary fresh (tmp.dir);
+    REQUIRE (fresh.find (taken) != nullptr);
+    CHECK (fresh.find (taken)->name == "Other");
+    REQUIRE (fresh.find (map.id) != nullptr);
+    CHECK (fresh.find (map.id)->name == "Studio Kit");
 }
 
 TEST_CASE ("import reports readable errors")
@@ -276,12 +351,12 @@ TEST_CASE ("never overwrites a map file that did not load")
 
     MapLibrary library (tmp.dir);
 
-    // import picks a free id and leaves the broken file alone
+    // a free id skips the broken file
+    CHECK (library.uniqueId ("test-kit") == "test-kit-2");
     juce::String id;
     REQUIRE (library.importCubase (fixture ("cubase_basic.xml"), id).wasOk());
-    CHECK (id == "test-kit-2");
+    CHECK (id != "test-kit");
     CHECK (broken.loadFileAsString() == "{ not json");
-    CHECK (library.uniqueId ("test-kit") == "test-kit-3");
 
     // a direct save with that id is refused
     const auto result = library.saveMap (userMap ("test-kit", "Mine"));
@@ -290,7 +365,7 @@ TEST_CASE ("never overwrites a map file that did not load")
     CHECK (broken.loadFileAsString() == "{ not json");
 
     // re-saving a loaded user map is fine
-    CHECK (library.saveMap (*library.find ("test-kit-2")).wasOk());
+    CHECK (library.saveMap (*library.find (id)).wasOk());
 }
 
 TEST_CASE ("saveOverrides refuses to replace a pair file that did not load")

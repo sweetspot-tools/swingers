@@ -261,10 +261,33 @@ juce::String MapLibrary::uniqueId (const juce::String& base) const
     }
 }
 
+juce::String MapLibrary::freshId (const juce::String& name)
+{
+    constexpr int kMaxSlug = 40; // keeps file names short
+    auto base = slugOf (name).substring (0, kMaxSlug).trimCharactersAtEnd ("-");
+    if (base.isEmpty())
+        base = "map";
+
+    const auto draw = [this, &base]
+    { return base + "-" + juce::String::toHexString (random.nextInt (0x10000)).paddedLeft ('0', 4); };
+
+    for (int attempt = 0; attempt < 64; ++attempt)
+        if (const auto candidate = draw(); find (candidate) == nullptr && ! mapFile (mapsDir(), candidate).exists())
+            return candidate;
+
+    return uniqueId (draw());
+}
+
+juce::Result MapLibrary::saveNewMap (DrumMap& map)
+{
+    reload();
+    map.id = freshId (map.name);
+    return saveMap (map);
+}
+
 DrumMap MapLibrary::newMap() const
 {
     DrumMap map;
-    map.id = uniqueId ("new-map");
     map.name = "New map";
     return map;
 }
@@ -276,7 +299,7 @@ DrumMap MapLibrary::duplicate (const juce::String& id) const
         return {};
 
     DrumMap copy = *source;
-    copy.id = uniqueId (id + "-copy");
+    copy.id.clear();
     copy.name = (source->name.isNotEmpty() ? source->name : source->id) + " (copy)";
     return copy;
 }
@@ -291,8 +314,7 @@ juce::Result MapLibrary::importCubase (const juce::File& xml, juce::String& newI
     if (! map)
         return juce::Result::fail (error.isNotEmpty() ? error : "Not a usable Cubase drum map");
 
-    map->id = uniqueId (map->id);
-    if (const auto r = saveMap (*map); r.failed())
+    if (const auto r = saveNewMap (*map); r.failed())
         return r;
 
     newId = map->id;

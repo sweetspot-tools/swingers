@@ -62,7 +62,21 @@ public:
     // Seed of the panel wear, saved with the project. Created at random on first use (never 0).
     uint32_t wearSeed();
 
+    // Programmatic choice of both maps: a project copy with the same id is kept (it wins over a different
+    // library version, see resolve()).
     void selectMaps(const juce::String& fromId, const juce::String& toId);
+
+    // The user picked `id` in the From or To selector: that side's project copy is dropped, so the library
+    // version is used.
+    enum class Side { from, to };
+    void chooseMap(Side side, const juce::String& id);
+
+    // The map editor saved `id`: the sides that use it drop their project copy and take the saved version.
+    void useLibraryVersionOf(const juce::String& id);
+
+    // Reloads the library from disk (other instances may have saved maps) and resolves the maps again.
+    // Invalidates pointers into library(): callers copy what they keep.
+    void reloadLibrary();
     void setChannel(int channel);
     void applyOverrides(const PairOverrides&); // saves to the library and rebuilds the table
 

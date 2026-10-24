@@ -99,20 +99,6 @@ juce::String escapeAttributeValues (const juce::String& text)
     return juce::String::fromUTF8 (out.data(), (int) out.size());
 }
 
-juce::String slugOf (const juce::String& name)
-{
-    juce::String slug;
-    for (auto c : name.toLowerCase())
-    {
-        const bool alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
-        if (alnum)
-            slug << c;
-        else if (slug.isNotEmpty() && ! slug.endsWithChar ('-'))
-            slug << '-';
-    }
-    return slug.trimCharactersAtEnd ("-");
-}
-
 // Value of the direct child `<tag name="key" value="..."/>`, empty if absent.
 bool childValue (const juce::XmlElement& parent, const char* tag, const char* key, juce::String& value)
 {
@@ -139,6 +125,20 @@ bool noteChild (const juce::XmlElement& item, const char* key, int& note)
     return note >= 0 && note <= 127;
 }
 } // namespace
+
+juce::String slugOf (const juce::String& name)
+{
+    juce::String slug;
+    for (auto c : name.toLowerCase())
+    {
+        const bool alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+        if (alnum)
+            slug << c;
+        else if (slug.isNotEmpty() && ! slug.endsWithChar ('-'))
+            slug << '-';
+    }
+    return slug.trimCharactersAtEnd ("-");
+}
 
 std::optional<DrumMap> importCubaseDrumMap (const juce::String& xmlText, juce::String& error)
 {

@@ -324,7 +324,7 @@ void MapEditorView::startNewMap()
 void MapEditorView::startDuplicate()
 {
     auto copy = processor.library().duplicate (edited.id);
-    if (copy.id.isEmpty())
+    if (copy.name.isEmpty())
         return; // the edited map is not in the library (a new map that was discarded)
 
     edited = std::move (copy);
@@ -337,7 +337,7 @@ void MapEditorView::startDuplicate()
 
 void MapEditorView::importFile (const juce::File& cubaseXml)
 {
-    juce::String newId;
+    juce::String newId; // importCubase reloads the library first
     if (const auto result = processor.library().importCubase (cubaseXml, newId); result.failed())
     {
         setStatus (result.getErrorMessage(), true);
@@ -543,8 +543,11 @@ bool MapEditorView::save()
         return false;
 
     commitPendingEdits();
-    const auto toSave = prunedMap();
-    if (const auto result = processor.library().saveMap (toSave); result.failed())
+    auto toSave = prunedMap();
+    // A new or duplicated map gets its id now (saveNewMap reloads and picks a free one); a library map is
+    // saved over its own file.
+    auto& library = processor.library();
+    if (const auto result = isNew ? library.saveNewMap (toSave) : library.saveMap (toSave); result.failed())
     {
         setStatus ("Could not save: " + result.getErrorMessage(), true);
         repaint();
@@ -557,11 +560,10 @@ bool MapEditorView::save()
     isNew = false;
     dirty = false;
 
+    // The processor takes the saved version when this map is its From or To (the project copy is replaced).
     const auto id = toSave.id;
-    const auto fromId = processor.current().from.id;
-    const auto toId = processor.current().to.id;
-    if (id == fromId || id == toId)
-        processor.selectMaps (fromId, toId);
+    if (id == processor.current().from.id || id == processor.current().to.id)
+        processor.useLibraryVersionOf (id);
 
     setStatus ("Saved " + (edited.name.isNotEmpty() ? edited.name : edited.id), false);
     refreshAll();

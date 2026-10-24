@@ -103,6 +103,12 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 - Bus: MIDI in, MIDI out, nessun audio (`isMidiEffect`), così in Logic è un MIDI FX e negli altri DAW un effetto MIDI.
 - **Stato nel progetto:** id delle due mappe, canale, e una copia delle due mappe e delle eccezioni in uso. Se una mappa
   non c'è più sul computer, il plugin usa la copia e lo segnala; il progetto suona uguale su un altro computer.
+  **La copia del progetto vince** anche quando sul computer c'è una mappa con lo stesso id ma contenuto diverso (avviso
+  "Map '<nome>' on this computer differs from the copy saved in the project: using the project's copy"); stessa regola per
+  le eccezioni (file di coppia diverso dalla copia → la copia, con avviso). Se manca la mappa e manca la copia: General
+  MIDI con avviso "Map '<id>' not found and no copy in the project: using General MIDI". Si passa alla versione del
+  computer solo con una scelta esplicita: scegliere la mappa nel selettore From/To scarta la copia di quel lato; salvare
+  la mappa dall'editor scarta la copia dei lati che la usano; modificare le eccezioni sostituisce la copia (come prima).
 - **Thread:** `getStateInformation` legge solo uno snapshot serializzato, protetto da un lock e aggiornato a ogni
   ricostruzione, quindi è sicuro da qualsiasi thread del host; `setStateInformation` memorizza subito i byte come
   snapshot e applica lo stato sul thread dei messaggi (subito, se ci si è già, altrimenti con `callAsync` e una guardia
@@ -118,8 +124,13 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
   mappe delle librerie si creano nuove con l'editor (decisione dell'utente del 2026-10-24).
 - **Id e nomi dei file (regola unica, per avere nomi iniettivi):** l'id di una mappa usa solo `[a-z0-9-]` e il file si chiama
   esattamente `<id>.swmap.json`; il file di coppia `<idA>__<idB>.swpair.json`. Un file che non rispetta la regola non si
-  carica (segnalato nel selettore). Un id uguale a una mappa inclusa non la sostituisce mai; un secondo import con lo
-  stesso nome prende `-2` (si salta ogni nome già occupato su disco).
+  carica (segnalato nel selettore). Un id uguale a una mappa inclusa non la sostituisce mai.
+- **Id delle mappe nuove (deciso il 2026-10-24, revisione finale):** una mappa nuova o duplicata non ha id finché non si
+  salva; al primo salvataggio prende lo slug del nome (stesse regole dell'import, `[a-z0-9-]`, al massimo 40 caratteri,
+  `map` se vuoto) + `-` + 4 cifre esadecimali minuscole casuali (es. `studio-kit-7f3a`). Prima di salvare la libreria si
+  ricarica dal disco e, se l'id è già preso (in libreria o come file su disco), si estrae di nuovo (`-2`, `-3`… solo come
+  ultima risorsa). Anche le mappe importate da Cubase prendono il suffisso casuale. Così due computer difficilmente
+  danno lo stesso id a mappe diverse, e un'altra istanza che salva nel frattempo non viene mai sovrascritta.
 - **Mai sovrascrivere ciò che non si è caricato:** un salvataggio rifiuta di rimpiazzare un file di mappa o di coppia
   che non è riuscito a caricarsi (illeggibile o con id sbagliato), per non distruggere dati dell'utente.
 - Cartella dell'utente: `Documents/Swingers/` con `maps/` e `pairs/`, la stessa per plugin e standalone.
@@ -172,7 +183,8 @@ Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, gr
 ## 6. Errori
 
 - Un file di mappa o di coppia illeggibile non blocca mai l'audio: viene saltato e segnalato nel selettore.
-- Mappa scelta mancante: si usa la copia salvata nel progetto, con avviso.
+- Mappa scelta mancante: si usa la copia salvata nel progetto, con avviso; senza copia, General MIDI con avviso.
+- Mappa (o file di coppia) presente ma diversa dalla copia del progetto: si usa la copia, con avviso (§4.2).
 - File MIDI illeggibile o senza note sul canale scelto: lo standalone lo dice nel resoconto e non salva.
 
 ## 7. Test
@@ -216,8 +228,6 @@ di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 
 ### Limiti noti della prima versione (da valutare)
 
-- *Save* di una mappa nuova non ancora salvata può sovrascrivere una mappa utente con lo stesso id scritta nel frattempo da
-  un'altra istanza.
 - Nello standalone, se il nome scelto nel salvataggio non ha estensione, la richiesta di conferma nativa controlla `nome`
   ma si scrive `nome.mid`: un `nome.mid` esistente verrebbe sovrascritto senza avviso.
 - Il caso limite del note-on ripetuto (§4.1).

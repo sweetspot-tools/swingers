@@ -15,17 +15,40 @@ std::optional<DrumMap> mapCopyFrom (const juce::var& value)
     return drumMapFromJson (value, problems);
 }
 
+bool sameContent (const juce::var& a, const juce::var& b)
+{
+    return juce::JSON::toString (a, true) == juce::JSON::toString (b, true);
+}
+
+juce::String displayName (const DrumMap& map)
+{
+    return map.name.isNotEmpty() ? map.name : map.id;
+}
+
 DrumMap resolveMap (const juce::String& id, const std::optional<DrumMap>& copy, const MapLibrary& library,
                     juce::StringArray& warnings)
 {
-    if (const auto* found = library.find (id))
-        return *found;
+    const bool haveCopy = copy && copy->id == id;
 
-    if (copy && copy->id == id)
+    if (const auto* found = library.find (id))
     {
-        warnings.add ("Map '" + copy->name + "' not found on this computer: using the copy saved in the project");
+        // Ids are only unique per computer: a different map under the same id must not change the project.
+        if (haveCopy && ! sameContent (toJson (*found), toJson (*copy)))
+        {
+            warnings.add ("Map '" + displayName (*copy)
+                          + "' on this computer differs from the copy saved in the project: using the project's copy");
+            return *copy;
+        }
+        return *found;
+    }
+
+    if (haveCopy)
+    {
+        warnings.add ("Map '" + displayName (*copy) + "' not found on this computer: using the copy saved in the project");
         return *copy;
     }
+
+    warnings.add ("Map '" + id + "' not found and no copy in the project: using General MIDI");
 
     if (const auto* gm = library.find (kGeneralMidiId))
         return *gm;
@@ -98,9 +121,20 @@ ResolvedMaps resolve (const PluginState& state, const MapLibrary& library)
     out.to = resolveMap (state.toId, state.toCopy, library, out.warnings);
 
     out.overrides = library.overrides (out.from.id, out.to.id);
-    if (out.overrides.empty() && state.overridesCopy && state.overridesCopy->fromId == out.from.id
-        && state.overridesCopy->toId == out.to.id)
-        out.overrides = *state.overridesCopy;
+    if (state.overridesCopy && state.overridesCopy->fromId == out.from.id && state.overridesCopy->toId == out.to.id)
+    {
+        const auto& copy = *state.overridesCopy;
+        if (out.overrides.empty())
+        {
+            out.overrides = copy; // no pair file here: the project's copy, silently
+        }
+        else if (! sameContent (toJson (out.overrides), toJson (copy)))
+        {
+            out.warnings.add ("Exceptions for '" + displayName (out.from) + "' to '" + displayName (out.to)
+                              + "' on this computer differ from the copy saved in the project: using the project's copy");
+            out.overrides = copy;
+        }
+    }
 
     return out;
 }

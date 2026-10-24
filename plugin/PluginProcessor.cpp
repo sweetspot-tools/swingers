@@ -59,6 +59,39 @@ void SwingersProcessor::selectMaps(const juce::String& fromId, const juce::Strin
     notifyChanged();
 }
 
+void SwingersProcessor::chooseMap(Side side, const juce::String& id)
+{
+    if (side == Side::from)
+    {
+        state_.fromId = id;
+        state_.fromCopy.reset();
+    }
+    else
+    {
+        state_.toId = id;
+        state_.toCopy.reset();
+    }
+    rebuild();
+    notifyChanged();
+}
+
+void SwingersProcessor::useLibraryVersionOf(const juce::String& id)
+{
+    if (state_.fromId == id)
+        state_.fromCopy.reset();
+    if (state_.toId == id)
+        state_.toCopy.reset();
+    rebuild();
+    notifyChanged();
+}
+
+void SwingersProcessor::reloadLibrary()
+{
+    library_.reload();
+    rebuild();
+    notifyChanged();
+}
+
 void SwingersProcessor::setChannel(int channel)
 {
     state_.channel = juce::jlimit(0, 16, channel);

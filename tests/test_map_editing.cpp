@@ -20,44 +20,6 @@ struct TempRoot
 };
 } // namespace
 
-TEST_CASE ("duplicate of the GM map is editable and saved")
-{
-    TempRoot tmp;
-    MapLibrary library (tmp.dir);
-
-    auto copy = library.duplicate (kGeneralMidiId);
-    CHECK (copy.id == "general-midi-copy");
-    CHECK (copy.name == "General MIDI (copy)");
-    REQUIRE (library.find (kGeneralMidiId) != nullptr);
-    CHECK (copy.notes.size() == library.find (kGeneralMidiId)->notes.size());
-
-    REQUIRE (library.saveMap (copy).wasOk());
-    CHECK (library.find ("general-midi-copy") != nullptr);
-    CHECK_FALSE (library.isBundled ("general-midi-copy"));
-    CHECK (tmp.dir.getChildFile ("maps/general-midi-copy.swmap.json").existsAsFile());
-    CHECK (library.duplicate ("general-midi").id == "general-midi-copy-2");
-    CHECK (library.duplicate ("nope").id.isEmpty());
-}
-
-TEST_CASE ("new map gets a unique id")
-{
-    TempRoot tmp;
-    MapLibrary library (tmp.dir);
-
-    auto first = library.newMap();
-    CHECK (first.id == "new-map");
-    CHECK (first.name == "New map");
-    CHECK (first.notes.empty());
-    REQUIRE (library.saveMap (first).wasOk());
-
-    auto second = library.newMap();
-    CHECK (second.id == "new-map-2");
-    REQUIRE (library.saveMap (second).wasOk());
-    CHECK (library.find ("new-map") != nullptr);
-    CHECK (library.find ("new-map-2") != nullptr);
-    CHECK (library.newMap().id == "new-map-3");
-}
-
 // ---------------------------------------------------------------------------------------------------------
 // The editor view
 // ---------------------------------------------------------------------------------------------------------
@@ -299,20 +261,27 @@ TEST_CASE ("duplicate makes an editable unsaved copy")
 {
     ViewFixture f;
     button (*f.view, "duplicate").onClick();
-    CHECK (f.view->editedMap().id == "my-kit-copy");
+    CHECK (f.view->editedMap().id.isEmpty()); // the id comes with the first save
     CHECK (f.view->editedMap().name == "My Kit (copy)");
     CHECK (f.view->isDirty()); // not on disk yet
     CHECK_FALSE (f.view->isReadOnly());
     CHECK (f.view->editedMap().notes.size() == 2);
 
     REQUIRE (f.view->save());
-    CHECK (f.saved ("my-kit-copy").notes.size() == 2);
-    CHECK (f.saved ("my-kit-copy").name == "My Kit (copy)");
+    const auto id = f.view->editedMap().id;
+    CHECK (id.startsWith ("my-kit-copy-"));
+    CHECK (id.length() == juce::String ("my-kit-copy-").length() + 4);
+    CHECK (f.saved (id.toRawUTF8()).notes.size() == 2);
+    CHECK (f.saved (id.toRawUTF8()).name == "My Kit (copy)");
+
+    auto* selector = dynamic_cast<juce::ComboBox*> (f.view->findChildWithID ("mapSelector"));
+    REQUIRE (selector != nullptr);
+    CHECK (selector->getText() == "My Kit (copy)"); // the selector follows the new id
 
     // The same from a built-in map.
     f.view->loadMap (kGeneralMidiId);
     button (*f.view, "duplicate").onClick();
-    CHECK (f.view->editedMap().id == "general-midi-copy");
+    CHECK (f.view->editedMap().name == "General MIDI (copy)");
     CHECK_FALSE (f.view->isReadOnly());
 }
 
@@ -320,7 +289,8 @@ TEST_CASE ("new map starts empty and can be named and saved")
 {
     ViewFixture f;
     button (*f.view, "new").onClick();
-    CHECK (f.view->editedMap().id == "new-map");
+    CHECK (f.view->editedMap().id.isEmpty());
+    CHECK (f.view->editedMap().name == "New map");
     CHECK (f.view->editedMap().notes.empty());
 
     f.view->setMapName ("Fresh Kit");
@@ -328,10 +298,49 @@ TEST_CASE ("new map starts empty and can be named and saved")
     f.view->setNoteGm (36, 36);
     REQUIRE (f.view->save());
 
-    const auto map = f.saved ("new-map");
-    CHECK (map.name == "Fresh Kit"); // the id stays
+    const auto id = f.view->editedMap().id; // from the name at the first save
+    CHECK (id.startsWith ("fresh-kit-"));
+    CHECK (id.length() == juce::String ("fresh-kit-").length() + 4);
+    const auto map = f.saved (id.toRawUTF8());
+    CHECK (map.name == "Fresh Kit");
     CHECK (map.find (36)->name == "Boom");
-    CHECK (f.view->editedMap().id == "new-map");
+
+    // Renamed and saved again: the id stays.
+    f.view->setMapName ("Fresh Kit 2");
+    REQUIRE (f.view->save());
+    CHECK (f.view->editedMap().id == id);
+    CHECK (f.saved (id.toRawUTF8()).name == "Fresh Kit 2");
+}
+
+TEST_CASE ("saving a new map never overwrites a map another instance saved with the same id meanwhile")
+{
+    ViewFixture f;
+    f.processor->library().setRandomSeed (99);
+    button (*f.view, "new").onClick();
+    f.view->setMapName ("Studio Kit");
+    f.view->setNoteName (36, "Boom");
+
+    // The id the first draw would give, taken by another instance before SAVE.
+    MapLibrary probe (f.tmp.dir);
+    probe.setRandomSeed (99);
+    const auto taken = probe.freshId ("Studio Kit");
+    {
+        MapLibrary other (f.tmp.dir);
+        DrumMap theirs;
+        theirs.id = taken;
+        theirs.name = "Theirs";
+        theirs.notes = { { 40, "Their Snare", 38, false } };
+        REQUIRE (other.saveMap (theirs).wasOk());
+    }
+
+    REQUIRE (f.view->save());
+    const auto id = f.view->editedMap().id;
+    CHECK (id != taken);
+    CHECK (id.startsWith ("studio-kit-"));
+    CHECK (f.saved (taken.toRawUTF8()).name == "Theirs");
+    CHECK (f.saved (id.toRawUTF8()).name == "Studio Kit");
+    CHECK (f.tmp.dir.getChildFile ("maps/" + taken + ".swmap.json").existsAsFile());
+    CHECK (f.tmp.dir.getChildFile ("maps/" + id + ".swmap.json").existsAsFile());
 }
 
 TEST_CASE ("unsaved changes: Discard, Save and Cancel")
@@ -342,7 +351,7 @@ TEST_CASE ("unsaved changes: Discard, Save and Cancel")
         f.answerWith (MapEditorView::UnsavedChoice::cancel);
         button (*f.view, "duplicate").onClick();
         CHECK (f.questions == 0);
-        CHECK (f.view->editedMap().id == "my-kit-copy");
+        CHECK (f.view->editedMap().name == "My Kit (copy)");
     }
 
     SECTION ("Discard drops the edits and goes on")
@@ -364,7 +373,7 @@ TEST_CASE ("unsaved changes: Discard, Save and Cancel")
         f.answerWith (MapEditorView::UnsavedChoice::save);
         button (*f.view, "new").onClick();
         CHECK (f.questions == 1);
-        CHECK (f.view->editedMap().id == "new-map");
+        CHECK (f.view->editedMap().name == "New map");
         CHECK (f.saved ("my-kit").find (38)->name == "Changed");
     }
 
@@ -556,11 +565,11 @@ TEST_CASE ("a draft of a new map comes back as a new map; a discarded edit leave
         auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
         REQUIRE (swingersEditor->isMapEditorShown());
         auto& view = swingersEditor->mapEditorView();
-        CHECK (view.editedMap().id == "new-map");
+        CHECK (view.editedMap().id.isEmpty());
         CHECK (view.editedMap().name == "Draft Kit");
         CHECK (view.editedMap().find (36)->name == "Boom");
         CHECK_FALSE (button (view, "duplicate").isEnabled()); // nothing in the library to copy yet
-        CHECK (processor.library().find ("new-map") == nullptr);
+        CHECK (processor.library().maps().size() == 3); // GM, My Kit, Other Kit: nothing saved
 
         // Discard through the public API: asks, then leaves no draft behind.
         int questions = 0;

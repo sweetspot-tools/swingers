@@ -41,11 +41,23 @@ public:
     juce::Result saveOverrides (const PairOverrides&); // empty overrides delete the pair file
 
     juce::String uniqueId (const juce::String& base) const; // base, base-2, base-3...
+
+    // A free id for a map called `name`: slug of the name (as for Cubase imports, "map" when empty, at most 40
+    // characters) + "-" + 4 random lowercase hex digits, e.g. "studio-kit-7f3a". Drawn again while the id is in
+    // the library or its file exists on disk; uniqueId() as the last resort. Uses the library as loaded.
+    juce::String freshId (const juce::String& name);
+    void setRandomSeed (juce::int64 seed) { random.setSeed (seed); } // tests: makes freshId predictable
+
+    // Saves a map that is not in the library yet (new, duplicated): reloads first (another instance may have
+    // saved meanwhile), gives `map` its id with freshId(map.name), then saveMap. `map.id` is the saved id.
+    juce::Result saveNewMap (DrumMap& map);
+
+    // Reloads, then saves the Cubase map with freshId(name of the map). `newId` is the saved id.
     juce::Result importCubase (const juce::File& xml, juce::String& newId);
 
-    // Starting points for the map editor; neither is saved. newMap: id uniqueId("new-map"), name "New map", no
-    // notes. duplicate: id uniqueId(id + "-copy"), name "<name> (copy)", the same notes; an empty map (empty id)
-    // when `id` is unknown.
+    // Starting points for the map editor; neither is saved and neither has an id yet (it comes with
+    // saveNewMap). newMap: name "New map", no notes. duplicate: name "<name> (copy)", the same notes; an empty
+    // map with an empty name when `id` is unknown.
     DrumMap newMap() const;
     DrumMap duplicate (const juce::String& id) const;
 
@@ -58,5 +70,6 @@ private:
     std::vector<DrumMap> allMaps;
     std::vector<PairOverrides> pairs;
     std::vector<LoadIssue> loadIssues;
+    juce::Random random;
 };
 } // namespace swingers

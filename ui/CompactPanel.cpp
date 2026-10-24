@@ -98,13 +98,13 @@ CompactPanel::CompactPanel (SwingersProcessor& p) : processor (p)
         const auto index = fromBox.getSelectedId() - 1;
         const auto& maps = processor.library().maps();
         if (index >= 0 && index < (int) maps.size())
-            processor.selectMaps (maps[(size_t) index].id, processor.current().to.id);
+            processor.chooseMap (SwingersProcessor::Side::from, maps[(size_t) index].id);
     };
     toBox.onChange = [this] {
         const auto index = toBox.getSelectedId() - 1;
         const auto& maps = processor.library().maps();
         if (index >= 0 && index < (int) maps.size())
-            processor.selectMaps (processor.current().from.id, maps[(size_t) index].id);
+            processor.chooseMap (SwingersProcessor::Side::to, maps[(size_t) index].id);
     };
     channelCycle.onChange = [this] (int channel) { processor.setChannel (channel); };
 
