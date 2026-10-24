@@ -17,6 +17,9 @@ struct LoadIssue
 // Bundled maps (BinaryData) plus the user's maps and pair-override files found under `userRoot`:
 //   userRoot/maps/<id>.swmap.json, userRoot/pairs/<fromId>__<toId>.swpair.json
 // Not thread safe: use it from the message thread only.
+// A valid id is [a-z0-9-]+. A user file must be named exactly after its id(s), otherwise it is reported.
+// maps(), find() and issues() return references/pointers into internal storage that reload(), saveMap,
+// saveOverrides and importCubase invalidate: callers copy, or look the map up again by id.
 class MapLibrary
 {
 public:

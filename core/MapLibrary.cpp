@@ -12,13 +12,14 @@ namespace
 constexpr const char* kMapSuffix = ".swmap.json";
 constexpr const char* kPairSuffix = ".swpair.json";
 
-// Ids become file names: keep them to a safe alphabet.
-bool isSafeId (const juce::String& id)
+// Ids become file names: [a-z0-9-]+ only (no '_', so "<from>__<to>" is unambiguous; no upper case,
+// so there are no collisions on case-insensitive file systems).
+bool isValidId (const juce::String& id)
 {
     if (id.isEmpty())
         return false;
     for (auto c : id)
-        if (! (juce::CharacterFunctions::isLetterOrDigit (c) || c == '-' || c == '_'))
+        if (! ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
             return false;
     return true;
 }
@@ -103,6 +104,16 @@ void MapLibrary::reload()
             loadIssues.push_back ({ file.getFileName(), "Not a valid Swingers drum map" });
             continue;
         }
+        if (! isValidId (map->id))
+        {
+            loadIssues.push_back ({ file.getFileName(), "Invalid id \"" + map->id + "\" (use a-z, 0-9 and '-')" });
+            continue;
+        }
+        if (file.getFileName() != map->id + kMapSuffix)
+        {
+            loadIssues.push_back ({ file.getFileName(), "The file name does not match the id \"" + map->id + "\"" });
+            continue;
+        }
         if (isBundled (map->id))
         {
             loadIssues.push_back ({ file.getFileName(), "The id \"" + map->id + "\" belongs to a bundled map" });
@@ -146,6 +157,16 @@ void MapLibrary::reload()
             loadIssues.push_back ({ file.getFileName(), "Not a valid Swingers pair file" });
             continue;
         }
+        if (! isValidId (loaded->fromId) || ! isValidId (loaded->toId))
+        {
+            loadIssues.push_back ({ file.getFileName(), "Invalid id (use a-z, 0-9 and '-')" });
+            continue;
+        }
+        if (file.getFileName() != pairFile (pairsDir(), loaded->fromId, loaded->toId).getFileName())
+        {
+            loadIssues.push_back ({ file.getFileName(), "The file name does not match the ids" });
+            continue;
+        }
         pairs.push_back (std::move (*loaded));
     }
 }
@@ -182,22 +203,32 @@ juce::Result MapLibrary::saveMap (const DrumMap& map)
 {
     if (isBundled (map.id))
         return juce::Result::fail ("\"" + map.id + "\" is a bundled map and cannot be overwritten");
-    if (! isSafeId (map.id))
-        return juce::Result::fail ("The map id may only contain letters, digits, '-' and '_'");
+    if (! isValidId (map.id))
+        return juce::Result::fail ("The map id may only contain a-z, 0-9 and '-'");
 
-    if (const auto r = writeJson (mapFile (mapsDir(), map.id), toJson (map)); r.failed())
+    const auto file = mapFile (mapsDir(), map.id);
+    if (file.exists() && find (map.id) == nullptr)
+        return juce::Result::fail (file.getFileName() + " exists but could not be loaded; fix or remove it first");
+
+    if (const auto r = writeJson (file, toJson (map)); r.failed())
         return r;
 
     reload();
+    if (find (map.id) == nullptr)
+        return juce::Result::fail ("The saved map \"" + map.id + "\" could not be loaded back");
     return juce::Result::ok();
 }
 
 juce::Result MapLibrary::saveOverrides (const PairOverrides& overridesToSave)
 {
-    if (! isSafeId (overridesToSave.fromId) || ! isSafeId (overridesToSave.toId))
-        return juce::Result::fail ("The map ids may only contain letters, digits, '-' and '_'");
+    if (! isValidId (overridesToSave.fromId) || ! isValidId (overridesToSave.toId))
+        return juce::Result::fail ("The map ids may only contain a-z, 0-9 and '-'");
 
     const auto file = pairFile (pairsDir(), overridesToSave.fromId, overridesToSave.toId);
+    const auto loaded = std::any_of (pairs.begin(), pairs.end(), [&] (const PairOverrides& p)
+                                     { return p.fromId == overridesToSave.fromId && p.toId == overridesToSave.toId; });
+    if (file.exists() && ! loaded)
+        return juce::Result::fail (file.getFileName() + " exists but could not be loaded; fix or remove it first");
 
     if (overridesToSave.empty())
     {
@@ -215,13 +246,17 @@ juce::Result MapLibrary::saveOverrides (const PairOverrides& overridesToSave)
 
 juce::String MapLibrary::uniqueId (const juce::String& base) const
 {
-    if (find (base) == nullptr)
+    // Also skip ids whose file exists on disk but did not load: never overwrite what we do not own.
+    const auto isFree = [this] (const juce::String& id)
+    { return find (id) == nullptr && ! mapFile (mapsDir(), id).exists(); };
+
+    if (isFree (base))
         return base;
 
     for (int n = 2;; ++n)
     {
         const auto candidate = base + "-" + juce::String (n);
-        if (find (candidate) == nullptr)
+        if (isFree (candidate))
             return candidate;
     }
 }
