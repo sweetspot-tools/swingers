@@ -1,6 +1,7 @@
 # Swingers — progetto (spec)
 
-Data: 2026-10-24. Stato: approvato in chat, da rivedere per iscritto.
+Data: 2026-10-24. Stato: **implementato (prima versione, branch `juce-rewrite`)**. Verificato con test automatici,
+validatore VST3 di Steinberg e rendering fuori schermo dell'interfaccia; non ancora provato a mano negli host (vedi §7 e §9).
 Repo: `sweetspot-tools/swingers` (checkout locale `/srv/http/midiconverter`). Organizzazione: Sweetspot Tools, la stessa dei
 Fairy Tapes; il nome segue il loro tono (gli "swingers" si scambiano i partner come Swingers scambia le note tra drum map;
 lo swing è anche un groove di batteria).
@@ -78,16 +79,31 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
   (predefinito: tutti). Ricorda per ogni nota accesa (canale, nota d'ingresso) dove è stata mandata, così il note-off va
   alla nota giusta anche se nel frattempo cambiano le mappe. Tutto il resto (CC, pitch bend, program change, clock, SysEx,
   altri canali) passa intatto. Nessuna allocazione nel thread audio; la tabella nuova si pubblica con uno scambio atomico.
+  Se il filtro del canale si allarga mentre una nota è tenuta, il suo note-off esce comunque sulla nota giusta.
+  **Caso limite accettato:** un secondo note-on per lo stesso (canale, nota d'ingresso) con un'altra nota d'arrivo, senza
+  note-off in mezzo (possibile solo se tabella o filtro cambiano durante due colpi sovrapposti), sovrascrive la memoria
+  della nota tenuta e può lasciare appesa la prima nota d'arrivo. Rarissimo; la correzione (un note-off sintetico
+  restituito da `route()`) è rimandata.
 - **`FileConverter`**: legge il file con `juce::MidiFile` (tick e formato del file conservati), cambia solo il numero di
   nota degli eventi di nota e aftertouch polifonico sul canale scelto, scarta gli eventi delle note scartate (note-on e il
   loro note-off), scrive un nuovo file. Ritorna un resoconto: tracce toccate, note convertite, note scartate per numero e
-  motivo.
+  motivo. Sulle sequenze di uscita **non** si chiama `updateMatchedPairs()`: JUCE inserirebbe note-off sintetici quando due
+  note d'origine confluiscono su una sola nota d'arrivo, cambiando il numero di eventi e rompendo l'esattezza al tick; chi
+  usa le sequenze in memoria non deve contare sugli accoppiamenti note-on/note-off. Rifiuta di scrivere sul file
+  d'origine (stesso percorso, o stesso file raggiunto da cartelle con link simbolici o da hard link, con
+  `std::filesystem::equivalent`).
 
 ### 4.2 Plugin
 
 - Bus: MIDI in, MIDI out, nessun audio (`isMidiEffect`), così in Logic è un MIDI FX e negli altri DAW un effetto MIDI.
 - **Stato nel progetto:** id delle due mappe, canale, e una copia delle due mappe e delle eccezioni in uso. Se una mappa
   non c'è più sul computer, il plugin usa la copia e lo segnala; il progetto suona uguale su un altro computer.
+- **Thread:** `getStateInformation` legge solo uno snapshot serializzato, protetto da un lock e aggiornato a ogni
+  ricostruzione, quindi è sicuro da qualsiasi thread del host; `setStateInformation` memorizza subito i byte come
+  snapshot e applica lo stato sul thread dei messaggi (subito, se ci si è già, altrimenti con `callAsync` e una guardia
+  sulla vita del processore). Tutto il resto è documentato come solo thread dei messaggi.
+- Un cambio del seme dell'usura avvisa il host (`updateHostDisplay`). Il programma unico si chiama "Default" (il
+  validatore VST3 rifiuta i programmi senza nome).
 
 ### 4.3 Dati su disco
 
@@ -95,6 +111,12 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
   coppia con eccezioni** (`<idA>__<idB>.swpair.json`).
 - Mappe incluse nella prima versione: solo **General MIDI** (note 35-81 con i nomi dello standard), scritta da zero. Le
   mappe delle librerie si creano nuove con l'editor (decisione dell'utente del 2026-10-24).
+- **Id e nomi dei file (regola unica, per avere nomi iniettivi):** l'id di una mappa usa solo `[a-z0-9-]` e il file si chiama
+  esattamente `<id>.swmap.json`; il file di coppia `<idA>__<idB>.swpair.json`. Un file che non rispetta la regola non si
+  carica (segnalato nel selettore). Un id uguale a una mappa inclusa non la sostituisce mai; un secondo import con lo
+  stesso nome prende `-2` (si salta ogni nome già occupato su disco).
+- **Mai sovrascrivere ciò che non si è caricato:** un salvataggio rifiuta di rimpiazzare un file di mappa o di coppia
+  che non è riuscito a caricarsi (illeggibile o con id sbagliato), per non distruggere dati dell'utente.
 - Cartella dell'utente: `Documents/Swingers/` con `maps/` e `pairs/`, la stessa per plugin e standalone.
 - Import da Cubase: dall'XML si prendono nome della mappa, e per ogni voce `INote` (nota), nome e `ONote` (voce GM
   proposta); le voci senza nome, con nome `---` o con `ONote` 0 restano senza voce GM. L'import tollera gli XML che
@@ -104,14 +126,15 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
 ## 5. Interfaccia
 
 **Layout approvato dall'utente il 2026-10-24** sulla preview `docs/mockups/swingers_preview.html`: pannello compatto
-520 × 140 (FROM → TO in riquadri col titolo sul bordo basso, canale come selettore che cicla con LED giallo, LED MIDI
-ambra, EDIT MAPPING, riga avvisi in ambra); patchbay ed editor delle mappe a 900 × 600 (la finestra del plugin si
+520 × 140 (FROM → TO in riquadri col titolo sul bordo basso, **canale come pulsante CH che cicla** (ALL, 1-16) con LED
+giallo, al posto della ComboBox del piano; LED MIDI ambra, EDIT MAPPING, riga avvisi in ambra); patchbay ed editor delle mappe a 900 × 600 (la finestra del plugin si
 allarga); standalone 520 × 330 con riquadri FILE e REPORT.
 
 **Usura come nei Fairy Tapes** (richiesta dell'utente del 2026-10-24): grana fine del pannello, graffi chiari, macchie opache
 a bordo netto, pezzi di nastro di carta scritti a mano (Homemade Apple, Apache-2.0, incluso nel plugin) con residui di
 colla, viti agli angoli. Tutto da un seme salvato nel progetto; nastro e macchie non coprono mai i controlli e nessun
-elemento dell'usura cattura i clic. Nella prima versione l'intensità è fissa (scelta Off/Light/Heavy: decisione aperta).
+elemento dell'usura cattura i clic. Nella prima versione l'intensità è fissa (scelta Off/Light/Heavy: decisione aperta). I generatori sono per categoria, ognuno
+con il proprio flusso casuale, così un elemento non sposta gli altri. Un cambio di seme avvisa il host.
 
 Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, grana, serigrafia; vedi
 `fairy-tapes/docs/DESIGN_SYSTEM.md`), ridisegnato in JUCE.
@@ -130,9 +153,16 @@ Testi visibili in inglese. Aspetto: il pannello rack dei Fairy Tapes (colori, gr
   - mentre suona, nota d'origine e cavo si accendono brevemente;
   - da qui si apre l'editor delle mappe.
 - **Editor delle mappe:** tabella delle 128 note (numero, nome, voce GM da menu, stella *preferita*), comandi *New*,
-  *Duplicate*, *Import from Cubase*. Le mappe incluse non si modificano: si duplicano.
+  *Duplicate*, *Import from Cubase*, *Save*. Le mappe incluse non si modificano: si duplicano. Le modifiche non salvate
+  sono tenute in memoria dal processore (non nel progetto) e ricompaiono quando la finestra si riapre, anche se il host la
+  chiude; non sopravvivono alla chiusura del progetto (salvare è esplicito). *Duplicate* è disabilitato su una mappa nuova
+  non salvata.
+- **Dimensioni della finestra:** 520 × 140 compatto, 520 × 330 con la barra file (standalone), 900 × 600 per patchbay ed
+  editor delle mappe; il plugin ridimensiona la finestra al cambio di vista.
 - **Standalone:** sotto il pannello compatto la barra *Open MIDI → Convert → Save* e il resoconto. Non sovrascrive mai il
-  file d'origine; propone `<nome>-<MappaArrivo>.mid`.
+  file d'origine; propone `<nome>-<MappaArrivo>.mid`. *Convert* tiene il risultato in memoria e *Save* lo scrive; se dopo
+  la conversione cambiano mappe, eccezioni o canale il risultato è **invalidato** (va rifatto *Convert*), così non si salva
+  mai una conversione vecchia. Un'apertura fallita conserva il file precedente.
 
 ## 6. Errori
 
@@ -151,7 +181,13 @@ Il codice nuovo nasce con un test che prima fallisce.
   solo i numeri di nota e mancano solo le note scartate.
 - **Import Cubase:** piccoli XML di prova (nome, note con e senza voce GM, `---`, `ONote` 0, caratteri non escapati)
   si leggono con note, nomi e voci GM attese.
-- **Plugin:** validatore VST3 di Steinberg, `auval` (AU, su Mac), `clap-validator`.
+- **Plugin:** validatore VST3 di Steinberg, `auval` (AU, su Mac), `clap-validator`, lanciati da `tools/validate.sh`.
+  Stato della prima versione: VST3 validato (47 test passati; il validatore ha trovato un programma senza nome, corretto);
+  CLAP non validato (`clap-validator` non installato, non scaricato); AU solo su macOS, non eseguito.
+- **Interfaccia e host:** al posto delle prove manuali nei DAW, test automatici (editor creato con
+  `ScopedJuceInitialiser_GUI`) e rendering fuori schermo in PNG (`swingers_render`, immagini in `docs/screenshots/`).
+  La prova negli host (carica, cambia mappe, salva e riapri il progetto) e il confronto di un file convertito in un DAW
+  restano da fare a mano.
 
 ## 8. Prima versione e fuori campo
 
@@ -166,5 +202,17 @@ di mappa (Reaper, Logic, Studio One, Superior Drummer, EZdrummer, GGD…), AAX.
 
 - Intensità dell'usura regolabile (Off, Light, Heavy) come nei Fairy Tapes: dove metterla, visto che Swingers non ha un
   retro con Settings.
-
 - Come si distribuiscono i binari (firma e notarizzazione su Mac, installer): da decidere prima del primo rilascio.
+- Font stretto incorporato per il testo serigrafato: oggi si usa il sans di sistema (Liberation Sans Bold su Linux), che
+  cambia da un sistema operativo all'altro, quindi larghezze e resa del testo non sono identiche ovunque.
+- Ombra del nastro di carta: ha un'ombra netta, ma il DESIGN_SYSTEM dei Fairy Tapes dice "niente ombre". Tenerla o toglierla.
+- Dispositivo Max for Live per Ableton Live (fuori dalla prima versione, vedi §8).
+- Prova negli host reali (Cubase, Reaper, Studio One, Bitwig, FL Studio, Logic) e validazione di CLAP e AU.
+
+### Limiti noti della prima versione (da valutare)
+
+- *Save* di una mappa nuova non ancora salvata può sovrascrivere una mappa utente con lo stesso id scritta nel frattempo da
+  un'altra istanza.
+- Nello standalone, se il nome scelto nel salvataggio non ha estensione, la richiesta di conferma nativa controlla `nome`
+  ma si scrive `nome.mid`: un `nome.mid` esistente verrebbe sovrascritto senza avviso.
+- Il caso limite del note-on ripetuto (§4.1).
