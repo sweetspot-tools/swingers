@@ -121,7 +121,7 @@ double SwingersProcessor::getTailLengthSeconds() const { return 0.0; }
 int SwingersProcessor::getNumPrograms() { return 1; }
 int SwingersProcessor::getCurrentProgram() { return 0; }
 void SwingersProcessor::setCurrentProgram(int) {}
-const juce::String SwingersProcessor::getProgramName(int) { return {}; }
+const juce::String SwingersProcessor::getProgramName(int) { return "Default"; }
 void SwingersProcessor::changeProgramName(int, const juce::String&) {}
 
 void SwingersProcessor::getStateInformation(juce::MemoryBlock& destData)
