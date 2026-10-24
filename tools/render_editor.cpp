@@ -1,5 +1,8 @@
-// Renders the plugin editor to a PNG: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]
-// Uses a throw-away user root with one extra map and one broken file, so the lists show both.
+// Renders the plugin editor to a PNG:
+//   swingers_render <output.png> [scale] [--with-warning] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]
+// Uses a throw-away user root with extra maps and one broken file, so the lists show both.
+// By default the compact panel shows General MIDI -> Studio Kit, both on this "computer" (no warning row);
+// --with-warning loads a project whose To map exists only as the project's copy, so the amber warning row shows.
 // --patchbay renders the "Edit mapping" view instead, with the preview's example: two user maps, one direct
 // cable (40 -> 33) and one disconnected note (37); --all-notes shows all 128 rows, --lit lights note 36.
 // --map-editor renders "Edit maps" on the preview's Metal Kit.
@@ -82,13 +85,13 @@ int main (int argc, char** argv)
 {
     if (argc < 2)
     {
-        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]\n");
+        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--with-warning] [--patchbay [--all-notes] [--lit]] [--map-editor] [--standalone]\n");
         return 2;
     }
 
     juce::ScopedJuceInitialiser_GUI gui;
     float scale = 2.0f;
-    bool patchbay = false, allNotes = false, lit = false, mapEditor = false, standalone = false;
+    bool patchbay = false, allNotes = false, lit = false, mapEditor = false, standalone = false, withWarning = false;
     for (int i = 2; i < argc; ++i)
     {
         const juce::String arg (argv[i]);
@@ -102,6 +105,8 @@ int main (int argc, char** argv)
             mapEditor = true;
         else if (arg == "--standalone")
             standalone = true;
+        else if (arg == "--with-warning")
+            withWarning = true;
         else
             scale = arg.getFloatValue();
     }
@@ -118,7 +123,7 @@ int main (int argc, char** argv)
         {
             swingers::MapLibrary writer (root);
             writer.saveMap (map);
-            if (patchbay || mapEditor || standalone)
+            if (patchbay || mapEditor || standalone || ! withWarning)
                 writePatchbayMaps (writer);
         }
         root.getChildFile ("maps/broken.swmap.json").replaceWithText ("{ not json");
@@ -137,6 +142,10 @@ int main (int argc, char** argv)
             overrides.connect (40, 33);
             overrides.drop (37);
             processor.applyOverrides (overrides);
+        }
+        else if (! withWarning)
+        {
+            processor.selectMaps (swingers::kGeneralMidiId, "studio-kit");
         }
         else
         {
