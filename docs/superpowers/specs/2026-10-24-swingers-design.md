@@ -82,6 +82,9 @@ Target CMake: `Swingers` (VST3, AU, CLAP, Standalone) e `swingers_tests`.
   alla nota giusta anche se nel frattempo cambiano le mappe. Tutto il resto (CC, pitch bend, program change, clock, SysEx,
   altri canali) passa intatto. Nessuna allocazione nel thread audio; la tabella nuova si pubblica con uno scambio atomico.
   Se il filtro del canale si allarga mentre una nota è tenuta, il suo note-off esce comunque sulla nota giusta.
+  **Bypass del host:** il MIDI passa invariato, ma il note-off (e l'aftertouch) di una nota accesa prima del bypass va
+  sulla nota d'arrivo in cui era stata mandata; una nota accesa durante il bypass è ricordata su sé stessa, quindi il suo
+  note-off esce invariato anche dopo la fine del bypass. Nessuna nota resta appesa.
   **Caso limite accettato:** un secondo note-on per lo stesso (canale, nota d'ingresso) con un'altra nota d'arrivo, senza
   note-off in mezzo (possibile solo se tabella o filtro cambiano durante due colpi sovrapposti), sovrascrive la memoria
   della nota tenuta e può lasciare appesa la prima nota d'arrivo. Rarissimo; la correzione (un note-off sintetico

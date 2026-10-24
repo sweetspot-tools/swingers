@@ -26,6 +26,10 @@ public:
     // (the only exception: a block bigger than the preallocated scratch grows it once, see the .cpp).
     void process (juce::MidiBuffer& buffer);
 
+    // Audio thread, while the host bypasses the plugin: like process, but with NoteRouter::pass (notes go out
+    // unchanged, offs of notes held from before the bypass still go to their target). Not counted as activity.
+    void processBypassed (juce::MidiBuffer& buffer);
+
     // Routed note-ons so far (Remapped only: not Dropped, not passed through).
     uint32_t activity() const noexcept;
 
@@ -33,6 +37,8 @@ public:
     uint32_t hits (int sourceNote) const noexcept;
 
 private:
+    void run (juce::MidiBuffer& buffer, bool bypassed);
+
     juce::SpinLock pendingLock_;
     ConversionTable pending_;          // guarded by pendingLock_
     bool hasPending_ = false;          // guarded by pendingLock_

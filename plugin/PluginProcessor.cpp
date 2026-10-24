@@ -109,6 +109,12 @@ void SwingersProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     remapper_.process(midi);
 }
 
+void SwingersProcessor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    buffer.clear();
+    remapper_.processBypassed(midi);
+}
+
 juce::AudioProcessorEditor* SwingersProcessor::createEditor() { return new SwingersEditor(*this); }
 bool SwingersProcessor::hasEditor() const { return true; }
 

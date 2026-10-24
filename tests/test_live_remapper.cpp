@@ -136,3 +136,33 @@ TEST_CASE ("live remapper handles a block larger than the scratch capacity")
     CHECK (eventsOf (buffer).size() == 1000);
     CHECK (remapper.activity() == 1000);
 }
+
+TEST_CASE ("live remapper in bypass passes notes but sends held offs to their target")
+{
+    auto table = ConversionTable::identity();
+    table.entries[36] = { 38, Route::Override, 36 };
+
+    LiveRemapper remapper;
+    remapper.setTable (table);
+
+    juce::MidiBuffer buffer;
+    buffer.addEvent (juce::MidiMessage::noteOn (1, 36, (juce::uint8) 100), 0);
+    remapper.process (buffer);
+    CHECK (eventsOf (buffer)[0].bytes[1] == 38);
+
+    buffer.clear();
+    buffer.addEvent (juce::MidiMessage::noteOff (1, 36), 0);
+    buffer.addEvent (juce::MidiMessage::noteOn (1, 36, (juce::uint8) 100), 5);
+    remapper.processBypassed (buffer);
+    auto out = eventsOf (buffer);
+    REQUIRE (out.size() == 2);
+    CHECK (out[0].bytes[1] == 38); // the off of the note started before bypass
+    CHECK (out[1].bytes[1] == 36); // a note started during bypass is untouched
+    CHECK (out[1].position == 5);
+    CHECK (remapper.activity() == 1); // bypassed notes are not counted
+
+    buffer.clear();
+    buffer.addEvent (juce::MidiMessage::noteOff (1, 36), 0);
+    remapper.process (buffer);
+    CHECK (eventsOf (buffer)[0].bytes[1] == 36); // its off, after bypass, unchanged
+}

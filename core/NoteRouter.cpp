@@ -15,6 +15,46 @@ int routedTarget (const ConversionTable& table, int note)
 }
 } // namespace
 
+NoteRouter::Outcome NoteRouter::followHeld (juce::MidiMessage& m, int16_t& held, int note, bool isNoteOff)
+{
+    const int target = held == kDropped ? -1 : held;
+    if (isNoteOff)
+        held = kNone;
+
+    if (target < 0)
+        return Outcome::Dropped;
+    if (target == note)
+        return Outcome::Pass;
+
+    m.setNoteNumber (target);
+    return Outcome::Remapped;
+}
+
+NoteRouter::Outcome NoteRouter::pass (juce::MidiMessage& m)
+{
+    const auto* raw = m.getRawData();
+    if (m.getRawDataSize() != 3)
+        return Outcome::Pass;
+
+    const int kind = raw[0] & 0xF0;
+    if (kind != 0x80 && kind != 0x90 && kind != 0xA0)
+        return Outcome::Pass;
+
+    const int note = raw[1] & 0x7F;
+    auto& held = held_[(size_t) ((raw[0] & 0x0F) * 128 + note)];
+
+    if (kind == 0x90 && raw[2] > 0)
+    {
+        held = (int16_t) note;
+        return Outcome::Pass;
+    }
+
+    if (held == kNone)
+        return Outcome::Pass;
+
+    return followHeld (m, held, note, kind == 0x80 || kind == 0x90);
+}
+
 void NoteRouter::reset()
 {
     held_.fill (kNone);

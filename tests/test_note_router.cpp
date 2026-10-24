@@ -297,3 +297,42 @@ TEST_CASE ("an off on an excluded channel for a self-held note passes untouched"
     CHECK (router.route (noteOff, table, 10) == Outcome::Pass);
     CHECK (noteOff.getNoteNumber() == 23);
 }
+
+TEST_CASE ("pass mode keeps every message and tracks held notes")
+{
+    NoteRouter router;
+    const auto table = tableWith ({ { 36, 38 } });
+
+    // Started while routing: its off follows the remapped target even in pass mode.
+    auto m = on (36);
+    CHECK (router.route (m, table, 0) == Outcome::Remapped);
+    CHECK (m.getNoteNumber() == 38);
+    auto pressure = juce::MidiMessage::aftertouchChange (1, 36, 50);
+    CHECK (router.pass (pressure) == Outcome::Remapped);
+    CHECK (pressure.getNoteNumber() == 38);
+    m = off (36);
+    CHECK (router.pass (m) == Outcome::Remapped);
+    CHECK (m.getNoteNumber() == 38);
+
+    // Started in pass mode: unchanged, and its off stays unchanged once routing is back.
+    m = on (36);
+    CHECK (router.pass (m) == Outcome::Pass);
+    CHECK (m.getNoteNumber() == 36);
+    m = off (36);
+    router.route (m, table, 0);
+    CHECK (m.getNoteNumber() == 36);
+
+    // Nothing held: everything passes untouched.
+    m = off (40);
+    CHECK (router.pass (m) == Outcome::Pass);
+    auto cc = juce::MidiMessage::controllerEvent (1, 7, 100);
+    CHECK (router.pass (cc) == Outcome::Pass);
+
+    // A note dropped while routing: its off is dropped too in pass mode (its on never went out).
+    auto dropped = ConversionTable::identity();
+    drop (dropped, 50);
+    m = on (50);
+    CHECK (router.route (m, dropped, 0) == Outcome::Dropped);
+    m = off (50);
+    CHECK (router.pass (m) == Outcome::Dropped);
+}

@@ -48,6 +48,16 @@ uint32_t LiveRemapper::hits (int sourceNote) const noexcept
 
 void LiveRemapper::process (juce::MidiBuffer& buffer)
 {
+    run (buffer, false);
+}
+
+void LiveRemapper::processBypassed (juce::MidiBuffer& buffer)
+{
+    run (buffer, true);
+}
+
+void LiveRemapper::run (juce::MidiBuffer& buffer, bool bypassed)
+{
     {
         // Never block the audio thread: if the message thread holds the lock, keep the last table.
         const juce::SpinLock::ScopedTryLockType lock (pendingLock_);
@@ -87,12 +97,12 @@ void LiveRemapper::process (juce::MidiBuffer& buffer)
             const int sourceNote = data[1] & 0x7F;
             const bool noteOn = kind == 0x90 && data[2] > 0;
 
-            const auto outcome = router_.route (message, active_, channel);
+            const auto outcome = bypassed ? router_.pass (message) : router_.route (message, active_, channel);
 
             if (outcome == NoteRouter::Outcome::Dropped)
                 continue;
 
-            if (outcome == NoteRouter::Outcome::Remapped && noteOn)
+            if (outcome == NoteRouter::Outcome::Remapped && noteOn && ! bypassed)
             {
                 activity_.fetch_add (1, std::memory_order_relaxed);
                 hits_[(size_t) sourceNote].fetch_add (1, std::memory_order_relaxed);

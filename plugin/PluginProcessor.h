@@ -26,6 +26,10 @@ public:
     void releaseResources() override;
     using juce::AudioProcessor::processBlock;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    // Host bypass: notes go out unchanged, but the offs of notes held from before go to their remapped target
+    // (JUCE's default would pass the MIDI raw and leave those notes hanging).
+    using juce::AudioProcessor::processBlockBypassed;
+    void processBlockBypassed(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;

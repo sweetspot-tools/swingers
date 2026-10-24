@@ -202,6 +202,38 @@ TEST_CASE ("processor channel filter and overrides rebuild the table")
     CHECK (notes[1] == 36); // other channel untouched
 }
 
+TEST_CASE ("bypass leaves no hanging notes")
+{
+    TempRoot tmp;
+    SwingersProcessor processor (tmp.dir);
+    PairOverrides overrides;
+    overrides.fromId = kGeneralMidiId;
+    overrides.toId = kGeneralMidiId;
+    overrides.connect (36, 38);
+    processor.applyOverrides (overrides);
+
+    juce::AudioBuffer<float> audio (1, 32);
+    const auto run = [&] (const juce::MidiMessage& message, bool bypassed) {
+        juce::MidiBuffer midi;
+        midi.addEvent (message, 0);
+        juce::AudioProcessor& base = processor;
+        if (bypassed)
+            base.processBlockBypassed (audio, midi);
+        else
+            base.processBlock (audio, midi);
+        REQUIRE (midi.getNumEvents() == 1);
+        return (*midi.begin()).getMessage().getNoteNumber();
+    };
+
+    // On 36 -> 38, then bypass: the off goes to 38.
+    CHECK (run (juce::MidiMessage::noteOn (1, 36, (juce::uint8) 100), false) == 38);
+    CHECK (run (juce::MidiMessage::noteOff (1, 36), true) == 38);
+
+    // On during bypass (unchanged), then un-bypass: the off stays on 36.
+    CHECK (run (juce::MidiMessage::noteOn (1, 36, (juce::uint8) 100), true) == 36);
+    CHECK (run (juce::MidiMessage::noteOff (1, 36), false) == 36);
+}
+
 TEST_CASE ("processor state round trip carries copies to another computer")
 {
     TempRoot tmpA, tmpB;
