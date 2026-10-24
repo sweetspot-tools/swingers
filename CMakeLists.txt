@@ -21,7 +21,9 @@ target_sources(swingers_core INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/core/DrumMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/CubaseImport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/PairOverrides.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/ConversionTable.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ConversionTable.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/NoteRouter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/LiveRemapper.cpp)
 target_link_libraries(swingers_core INTERFACE
     juce::juce_core
     juce::juce_audio_basics)
@@ -77,6 +79,8 @@ target_sources(swingers_tests PRIVATE
     tests/test_drum_map.cpp
     tests/test_cubase_import.cpp
     tests/test_conversion_table.cpp
+    tests/test_note_router.cpp
+    tests/test_live_remapper.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(swingers_tests PRIVATE plugin)
