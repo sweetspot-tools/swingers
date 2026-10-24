@@ -1,0 +1,493 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include <juce_gui_basics/juce_gui_basics.h>
+
+#include "DrumMap.h"
+#include "MapEditorView.h"
+#include "MapLibrary.h"
+#include "PluginEditor.h"
+#include "PluginProcessor.h"
+
+using namespace swingers;
+
+namespace
+{
+struct TempRoot
+{
+    juce::File dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                         .getChildFile ("swingers-mapedit-" + juce::Uuid().toString());
+    ~TempRoot() { dir.deleteRecursively(); }
+};
+} // namespace
+
+TEST_CASE ("duplicate of the GM map is editable and saved")
+{
+    TempRoot tmp;
+    MapLibrary library (tmp.dir);
+
+    auto copy = library.duplicate (kGeneralMidiId);
+    CHECK (copy.id == "general-midi-copy");
+    CHECK (copy.name == "General MIDI (copy)");
+    REQUIRE (library.find (kGeneralMidiId) != nullptr);
+    CHECK (copy.notes.size() == library.find (kGeneralMidiId)->notes.size());
+
+    REQUIRE (library.saveMap (copy).wasOk());
+    CHECK (library.find ("general-midi-copy") != nullptr);
+    CHECK_FALSE (library.isBundled ("general-midi-copy"));
+    CHECK (tmp.dir.getChildFile ("maps/general-midi-copy.swmap.json").existsAsFile());
+    CHECK (library.duplicate ("general-midi").id == "general-midi-copy-2");
+    CHECK (library.duplicate ("nope").id.isEmpty());
+}
+
+TEST_CASE ("new map gets a unique id")
+{
+    TempRoot tmp;
+    MapLibrary library (tmp.dir);
+
+    auto first = library.newMap();
+    CHECK (first.id == "new-map");
+    CHECK (first.name == "New map");
+    CHECK (first.notes.empty());
+    REQUIRE (library.saveMap (first).wasOk());
+
+    auto second = library.newMap();
+    CHECK (second.id == "new-map-2");
+    REQUIRE (library.saveMap (second).wasOk());
+    CHECK (library.find ("new-map") != nullptr);
+    CHECK (library.find ("new-map-2") != nullptr);
+    CHECK (library.newMap().id == "new-map-3");
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The editor view
+// ---------------------------------------------------------------------------------------------------------
+namespace
+{
+// A user map with a preferred kick and a snare, plus a second map to switch to.
+void prepareRoot (const juce::File& root)
+{
+    DrumMap kit;
+    kit.id = "my-kit";
+    kit.name = "My Kit";
+    kit.library = "Test";
+    kit.notes = { { 36, "Kick", 36, true }, { 38, "Snare", 38, false } };
+    DrumMap other;
+    other.id = "other-kit";
+    other.name = "Other Kit";
+    other.notes = { { 50, "Tom", 50, false } };
+    MapLibrary writer (root);
+    REQUIRE (writer.saveMap (kit).wasOk());
+    REQUIRE (writer.saveMap (other).wasOk());
+}
+
+juce::File fixture (const char* name)
+{
+    return juce::File (SWINGERS_FIXTURES_DIR).getChildFile (name);
+}
+
+juce::Button& button (MapEditorView& view, const char* id)
+{
+    auto* found = dynamic_cast<juce::Button*> (view.findChildWithID (id));
+    REQUIRE (found != nullptr);
+    return *found;
+}
+
+// Notes that come out when `note` goes in through the processor's current table.
+std::vector<int> routed (SwingersProcessor& processor, int note)
+{
+    juce::MidiBuffer buffer;
+    buffer.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) 100), 0);
+    processor.remapper().process (buffer);
+    std::vector<int> out;
+    for (const auto meta : buffer)
+        if (meta.getMessage().isNoteOn())
+            out.push_back (meta.getMessage().getNoteNumber());
+    return out;
+}
+
+struct ViewFixture
+{
+    ViewFixture (const char* from = "general-midi", const char* to = "my-kit")
+    {
+        prepareRoot (tmp.dir);
+        processor = std::make_unique<SwingersProcessor> (tmp.dir);
+        processor->selectMaps (from, to);
+        view = std::make_unique<MapEditorView> (*processor);
+        view->open();
+    }
+
+    DrumMap saved (const char* id) const
+    {
+        MapLibrary fresh (tmp.dir);
+        REQUIRE (fresh.find (id) != nullptr);
+        return *fresh.find (id);
+    }
+
+    // Answers the unsaved-changes question with `choice` and counts the questions.
+    void answerWith (MapEditorView::UnsavedChoice choice)
+    {
+        view->askUnsaved = [this, choice] (std::function<void (MapEditorView::UnsavedChoice)> reply) {
+            ++questions;
+            reply (choice);
+        };
+    }
+
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempRoot tmp;
+    std::unique_ptr<SwingersProcessor> processor;
+    std::unique_ptr<MapEditorView> view;
+    int questions = 0;
+};
+} // namespace
+
+TEST_CASE ("map editor opens on the To map, or on From when To is General MIDI")
+{
+    {
+        ViewFixture f ("other-kit", "my-kit");
+        CHECK (f.view->editedMap().id == "my-kit");
+        CHECK_FALSE (f.view->isDirty());
+        CHECK_FALSE (f.view->isReadOnly());
+        CHECK (f.view->getWidth() == 900);
+        CHECK (f.view->getHeight() == 600);
+    }
+    {
+        ViewFixture f ("other-kit", "general-midi");
+        CHECK (f.view->editedMap().id == "other-kit");
+    }
+    {
+        ViewFixture f ("general-midi", "general-midi");
+        CHECK (f.view->editedMap().id == "general-midi");
+    }
+}
+
+TEST_CASE ("editing a name and a GM voice and saving writes the file and rebuilds the table")
+{
+    ViewFixture f; // From = General MIDI, To = My Kit
+    CHECK (routed (*f.processor, 37).empty()); // GM side stick: My Kit has no voice 37
+
+    f.view->setNoteName (40, "Rimshot");
+    f.view->setNoteGm (40, 37);
+    CHECK (f.view->isDirty());
+    CHECK (routed (*f.processor, 37).empty()); // nothing happens before SAVE
+
+    REQUIRE (f.view->save());
+    CHECK_FALSE (f.view->isDirty());
+
+    const auto map = f.saved ("my-kit");
+    REQUIRE (map.find (40) != nullptr);
+    CHECK (map.find (40)->name == "Rimshot");
+    CHECK (map.find (40)->gm == 37);
+    CHECK (map.find (36)->preferred);
+    CHECK (f.tmp.dir.getChildFile ("maps/my-kit.swmap.json").existsAsFile());
+
+    CHECK (f.processor->current().to.find (40) != nullptr); // the processor rebuilt its table
+    CHECK (routed (*f.processor, 37) == std::vector<int> { 40 });
+}
+
+TEST_CASE ("saving a map that is not in use leaves the processor alone")
+{
+    ViewFixture f; // To = My Kit
+    f.view->loadMap ("other-kit");
+    f.view->setNoteName (51, "Ride");
+    f.view->setNoteGm (51, 51);
+    REQUIRE (f.view->save());
+
+    CHECK (f.saved ("other-kit").find (51) != nullptr);
+    CHECK (f.processor->current().to.id == "my-kit");
+}
+
+TEST_CASE ("an empty name with no GM voice leaves the note out of the saved map")
+{
+    ViewFixture f;
+    f.view->setNoteName (38, "");
+    f.view->setNoteGm (38, kNoGm);
+    f.view->setNoteName (60, "   "); // a note that was never in the map
+    f.view->setNoteName (36, "");    // keeps its voice: stays, nameless
+    REQUIRE (f.view->save());
+
+    const auto map = f.saved ("my-kit");
+    CHECK (map.find (38) == nullptr);
+    CHECK (map.find (60) == nullptr);
+    REQUIRE (map.find (36) != nullptr);
+    CHECK (map.find (36)->name.isEmpty());
+    CHECK (map.notes.size() == 1);
+}
+
+TEST_CASE ("the star is exclusive per GM voice and a lit star clears")
+{
+    ViewFixture f;
+    f.view->setNoteName (40, "Snare 2");
+    f.view->setNoteGm (40, 38);
+    f.view->setNoteName (41, "Tom");
+    f.view->setNoteGm (41, 41);
+
+    f.view->togglePreferred (38);
+    CHECK (f.view->isPreferred (38));
+    f.view->togglePreferred (40); // same voice: takes the star away from 38
+    CHECK (f.view->isPreferred (40));
+    CHECK_FALSE (f.view->isPreferred (38));
+    CHECK (f.view->isPreferred (36)); // another voice is not affected
+
+    f.view->togglePreferred (40); // lit star: clears
+    CHECK_FALSE (f.view->isPreferred (40));
+
+    f.view->setNoteName (70, "Free");
+    f.view->togglePreferred (70); // no GM voice: nothing to prefer
+    CHECK_FALSE (f.view->isPreferred (70));
+
+    f.view->togglePreferred (41);
+    f.view->setNoteGm (41, kNoGm); // losing its voice loses the star
+    CHECK_FALSE (f.view->isPreferred (41));
+}
+
+TEST_CASE ("bundled maps are read-only: fields and SAVE disabled, DUPLICATE enabled")
+{
+    ViewFixture f;
+    f.view->loadMap (kGeneralMidiId);
+    CHECK (f.view->isReadOnly());
+    CHECK_FALSE (button (*f.view, "save").isEnabled());
+    CHECK (button (*f.view, "duplicate").isEnabled());
+    CHECK (f.view->hintText() == "Built-in map: duplicate it to edit");
+
+    const auto original = f.view->editedMap().find (38)->name;
+    f.view->setNoteName (38, "Hacked");
+    f.view->setNoteGm (38, kNoGm);
+    f.view->togglePreferred (38);
+    CHECK_FALSE (f.view->isDirty());
+    CHECK (f.view->editedMap().find (38)->name == original);
+    CHECK_FALSE (f.view->save());
+
+    // The row components follow.
+    auto* row = f.view->table().getComponentForRowNumber (38);
+    REQUIRE (row != nullptr);
+    CHECK_FALSE (row->findChildWithID ("name")->isEnabled());
+    CHECK_FALSE (row->findChildWithID ("gm")->isEnabled());
+    CHECK_FALSE (f.view->findChildWithID ("mapName")->isEnabled());
+
+    f.view->loadMap ("my-kit");
+    CHECK_FALSE (f.view->isReadOnly());
+    CHECK (button (*f.view, "save").isEnabled() == f.view->isDirty());
+    row = f.view->table().getComponentForRowNumber (38);
+    REQUIRE (row != nullptr);
+    CHECK (row->findChildWithID ("name")->isEnabled());
+    CHECK (row->findChildWithID ("gm")->isEnabled());
+}
+
+TEST_CASE ("the GM voice menu lists none and the GM names")
+{
+    ViewFixture f;
+    auto* row = f.view->table().getComponentForRowNumber (36);
+    REQUIRE (row != nullptr);
+    auto* menu = dynamic_cast<juce::ComboBox*> (row->findChildWithID ("gm"));
+    REQUIRE (menu != nullptr);
+    CHECK (menu->getItemText (0) == "none");
+    bool found = false;
+    for (int i = 0; i < menu->getNumItems(); ++i)
+        found = found || menu->getItemText (i) == "36  Bass Drum 1";
+    CHECK (found);
+    CHECK (menu->getText() == "36  Bass Drum 1");
+
+    // Choosing from the menu edits the note.
+    for (int i = 0; i < menu->getNumItems(); ++i)
+        if (menu->getItemText (i) == "37  Side Stick")
+            menu->setSelectedItemIndex (i, juce::sendNotificationSync);
+    CHECK (f.view->editedMap().find (36)->gm == 37);
+    CHECK (f.view->isDirty());
+}
+
+TEST_CASE ("duplicate makes an editable unsaved copy")
+{
+    ViewFixture f;
+    button (*f.view, "duplicate").onClick();
+    CHECK (f.view->editedMap().id == "my-kit-copy");
+    CHECK (f.view->editedMap().name == "My Kit (copy)");
+    CHECK (f.view->isDirty()); // not on disk yet
+    CHECK_FALSE (f.view->isReadOnly());
+    CHECK (f.view->editedMap().notes.size() == 2);
+
+    REQUIRE (f.view->save());
+    CHECK (f.saved ("my-kit-copy").notes.size() == 2);
+    CHECK (f.saved ("my-kit-copy").name == "My Kit (copy)");
+
+    // The same from a built-in map.
+    f.view->loadMap (kGeneralMidiId);
+    button (*f.view, "duplicate").onClick();
+    CHECK (f.view->editedMap().id == "general-midi-copy");
+    CHECK_FALSE (f.view->isReadOnly());
+}
+
+TEST_CASE ("new map starts empty and can be named and saved")
+{
+    ViewFixture f;
+    button (*f.view, "new").onClick();
+    CHECK (f.view->editedMap().id == "new-map");
+    CHECK (f.view->editedMap().notes.empty());
+
+    f.view->setMapName ("Fresh Kit");
+    f.view->setNoteName (36, "Boom");
+    f.view->setNoteGm (36, 36);
+    REQUIRE (f.view->save());
+
+    const auto map = f.saved ("new-map");
+    CHECK (map.name == "Fresh Kit"); // the id stays
+    CHECK (map.find (36)->name == "Boom");
+    CHECK (f.view->editedMap().id == "new-map");
+}
+
+TEST_CASE ("unsaved changes: Discard, Save and Cancel")
+{
+    SECTION ("nothing to ask when nothing changed")
+    {
+        ViewFixture f;
+        f.answerWith (MapEditorView::UnsavedChoice::cancel);
+        button (*f.view, "duplicate").onClick();
+        CHECK (f.questions == 0);
+        CHECK (f.view->editedMap().id == "my-kit-copy");
+    }
+
+    SECTION ("Discard drops the edits and goes on")
+    {
+        ViewFixture f;
+        f.view->setNoteName (38, "Changed");
+        f.answerWith (MapEditorView::UnsavedChoice::discard);
+        f.view->loadMapGuarded ("other-kit");
+        CHECK (f.questions == 1);
+        CHECK (f.view->editedMap().id == "other-kit");
+        CHECK_FALSE (f.view->isDirty());
+        CHECK (f.saved ("my-kit").find (38)->name == "Snare");
+    }
+
+    SECTION ("Save writes the edits and goes on")
+    {
+        ViewFixture f;
+        f.view->setNoteName (38, "Changed");
+        f.answerWith (MapEditorView::UnsavedChoice::save);
+        button (*f.view, "new").onClick();
+        CHECK (f.questions == 1);
+        CHECK (f.view->editedMap().id == "new-map");
+        CHECK (f.saved ("my-kit").find (38)->name == "Changed");
+    }
+
+    SECTION ("Cancel stays where it was, edits kept")
+    {
+        ViewFixture f;
+        f.view->setNoteName (38, "Changed");
+        f.answerWith (MapEditorView::UnsavedChoice::cancel);
+        bool wentBack = false;
+        f.view->onBack = [&] { wentBack = true; };
+        button (*f.view, "back").onClick();
+        CHECK (f.questions == 1);
+        CHECK_FALSE (wentBack);
+        CHECK (f.view->isDirty());
+        CHECK (f.view->editedMap().find (38)->name == "Changed");
+        f.view->loadMapGuarded ("other-kit");
+        CHECK (f.view->editedMap().id == "my-kit");
+    }
+
+    SECTION ("BACK after Discard goes back")
+    {
+        ViewFixture f;
+        f.view->setNoteName (38, "Changed");
+        f.answerWith (MapEditorView::UnsavedChoice::discard);
+        bool wentBack = false;
+        f.view->onBack = [&] { wentBack = true; };
+        button (*f.view, "back").onClick();
+        CHECK (wentBack);
+        CHECK (f.saved ("my-kit").find (38)->name == "Snare");
+    }
+
+    SECTION ("a failed Save does not go on")
+    {
+        ViewFixture f;
+        f.view->setNoteName (38, "Changed");
+        f.tmp.dir.getChildFile ("maps").deleteRecursively();
+        REQUIRE (f.tmp.dir.getChildFile ("maps").replaceWithText ("in the way")); // a file where the folder should be
+        f.answerWith (MapEditorView::UnsavedChoice::save);
+        button (*f.view, "new").onClick();
+        CHECK (f.view->editedMap().id == "my-kit");
+        CHECK (f.view->isDirty());
+        CHECK (f.view->statusIsError());
+    }
+}
+
+TEST_CASE ("a failed save shows an amber status and keeps the edits")
+{
+    ViewFixture f;
+    f.view->setNoteName (38, "Changed");
+    f.tmp.dir.getChildFile ("maps").deleteRecursively();
+    REQUIRE (f.tmp.dir.getChildFile ("maps").replaceWithText ("in the way"));
+
+    CHECK_FALSE (f.view->save());
+    CHECK (f.view->statusIsError());
+    CHECK (f.view->statusText().isNotEmpty());
+    CHECK (f.view->isDirty());
+    CHECK (f.view->editedMap().find (38)->name == "Changed");
+}
+
+TEST_CASE ("import from Cubase selects the new map; a bad file reports in the status line")
+{
+    ViewFixture f;
+    f.view->importFile (fixture ("cubase_unescaped.xml"));
+    CHECK_FALSE (f.view->statusIsError());
+    CHECK (f.view->editedMap().name == "Odd Kit");
+    CHECK_FALSE (f.view->isReadOnly());
+    CHECK_FALSE (f.view->isDirty());
+    CHECK (f.processor->library().find (f.view->editedMap().id) != nullptr);
+    CHECK (f.view->editedMap().find (84) != nullptr); // an imported note
+
+    const auto id = f.view->editedMap().id;
+    f.view->importFile (f.tmp.dir.getChildFile ("missing.xml"));
+    CHECK (f.view->statusIsError());
+    CHECK (f.view->editedMap().id == id); // still on the previous map
+
+    f.view->importFile (fixture ("cubase_unescaped.xml")); // a second import gets its own id
+    CHECK (f.view->editedMap().id != id);
+}
+
+TEST_CASE ("the selector lists the library; the editor opens the view and BACK returns")
+{
+    ViewFixture f;
+    auto* selector = dynamic_cast<juce::ComboBox*> (f.view->findChildWithID ("mapSelector"));
+    REQUIRE (selector != nullptr);
+    CHECK (selector->getNumItems() == 3);
+    CHECK (selector->getText() == "My Kit");
+
+    SwingersProcessor processor2 (f.tmp.dir);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor2.createEditor());
+    auto* swingersEditor = dynamic_cast<SwingersEditor*> (editor.get());
+    REQUIRE (swingersEditor != nullptr);
+    swingersEditor->showPatchbay (true);
+    auto* editMaps = dynamic_cast<juce::Button*> (swingersEditor->patchbayView().findChildWithID ("editMaps"));
+    REQUIRE (editMaps != nullptr);
+    CHECK (editMaps->isEnabled());
+    editMaps->onClick();
+    CHECK (swingersEditor->isMapEditorShown());
+    CHECK_FALSE (swingersEditor->isPatchbayShown());
+    CHECK (editor->getWidth() == 900);
+    CHECK (editor->getHeight() == 600);
+    button (swingersEditor->mapEditorView(), "back").onClick();
+    CHECK_FALSE (swingersEditor->isMapEditorShown());
+    CHECK (swingersEditor->isPatchbayShown());
+}
+
+TEST_CASE ("text typed in a row reaches the map, also when SAVE comes before the change message")
+{
+    ViewFixture f;
+    auto* row = f.view->table().getComponentForRowNumber (38);
+    REQUIRE (row != nullptr);
+    auto* field = dynamic_cast<juce::TextEditor*> (row->findChildWithID ("name"));
+    REQUIRE (field != nullptr);
+
+    field->setText ("Snare Typed", false); // as typing does, but the change message is still queued
+    CHECK (f.view->editedMap().find (38)->name == "Snare");
+    REQUIRE (f.view->save());
+    CHECK (f.saved ("my-kit").find (38)->name == "Snare Typed");
+
+    // The message path.
+    field->setText ("Snare Again", true);
+    const auto end = juce::Time::getMillisecondCounter() + 100;
+    while (juce::Time::getMillisecondCounter() < end)
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+    CHECK (f.view->editedMap().find (38)->name == "Snare Again");
+    CHECK (f.view->isDirty());
+}

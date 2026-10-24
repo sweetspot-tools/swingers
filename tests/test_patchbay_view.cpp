@@ -356,14 +356,15 @@ TEST_CASE ("patchbay: All notes shows 128 rows and scrolls")
 TEST_CASE ("patchbay: Edit maps is disabled until something handles it")
 {
     Fixture f;
-    auto* button = dynamic_cast<juce::Button*> (f.view().findChildWithID ("editMaps"));
+    PatchbayView standalone (*f.processor); // the editor wires its own handler: use a bare view
+    auto* button = dynamic_cast<juce::Button*> (standalone.findChildWithID ("editMaps"));
     REQUIRE (button != nullptr);
 
-    f.editor->showPatchbay (true);
+    standalone.setVisible (true);
     CHECK_FALSE (button->isEnabled());
 
     int calls = 0;
-    f.view().setEditMapsHandler ([&calls] { ++calls; }); // set while shown: the look follows at once
+    standalone.setEditMapsHandler ([&calls] { ++calls; }); // set while shown: the look follows at once
     CHECK (button->isEnabled());
     button->triggerClick();
     pumpMessages();

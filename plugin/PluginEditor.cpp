@@ -3,7 +3,7 @@
 namespace swingers
 {
 SwingersEditor::SwingersEditor (SwingersProcessor& p)
-    : juce::AudioProcessorEditor (p), processor (p), compact (p), patchbay (p)
+    : juce::AudioProcessorEditor (p), processor (p), compact (p), patchbay (p), mapEditor (p)
 {
     setLookAndFeel (&lookAndFeel);
     setResizable (false, false);
@@ -11,6 +11,7 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     addAndMakeVisible (wearBackground);
     addAndMakeVisible (compact);
     addChildComponent (patchbay);
+    addChildComponent (mapEditor);
     addAndMakeVisible (wearTape);
     wearBackground.setComponentID ("wearBackground");
     wearTape.setComponentID ("wearTape");
@@ -19,8 +20,12 @@ SwingersEditor::SwingersEditor (SwingersProcessor& p)
     setWearKeepClear (CompactPanel::wearKeepClear());
     compact.setComponentID ("compactPanel");
     patchbay.setComponentID ("patchbayView");
+    mapEditor.setComponentID ("mapEditorView");
     compact.onEditMapping = [this] { showPatchbay (true); };
     patchbay.onDone = [this] { showPatchbay (false); };
+    patchbay.setEditMapsHandler ([this] { showMapEditor (true); });
+    mapEditor.onBack = [this] { showPatchbay (true); };
+    mapEditor.onLibraryChanged = [this] { compact.refresh(); };
     patchbay.onLayoutChanged = [this] {
         if (patchbayShown)
             setWearKeepClear (patchbay.wearKeepClear());
@@ -41,12 +46,17 @@ SwingersEditor::~SwingersEditor()
 {
     processor.onStateChanged = nullptr;
     patchbay.onLayoutChanged = nullptr;
+    patchbay.setEditMapsHandler (nullptr);
+    mapEditor.onBack = nullptr;
+    mapEditor.onLibraryChanged = nullptr;
     setLookAndFeel (nullptr);
 }
 
 void SwingersEditor::showPatchbay (bool show)
 {
     patchbayShown = show;
+    mapEditorShown = false;
+    mapEditor.setVisible (false);
     compact.setVisible (! show);
     patchbay.setVisible (show);
     if (show)
@@ -62,6 +72,24 @@ void SwingersEditor::showPatchbay (bool show)
     }
 }
 
+void SwingersEditor::showMapEditor (bool show)
+{
+    if (! show)
+    {
+        showPatchbay (true);
+        return;
+    }
+
+    patchbayShown = false;
+    mapEditorShown = true;
+    compact.setVisible (false);
+    patchbay.setVisible (false);
+    mapEditor.open();
+    mapEditor.setVisible (true);
+    setWearKeepClear (MapEditorView::wearKeepClear());
+    setSize (MapEditorView::kWidth, MapEditorView::kHeight);
+}
+
 void SwingersEditor::setWearKeepClear (const std::vector<juce::Rectangle<int>>& rectangles)
 {
     wearBackground.setKeepClear (rectangles);
@@ -74,5 +102,6 @@ void SwingersEditor::resized()
     wearTape.setBounds (getLocalBounds());
     compact.setBounds (0, 0, CompactPanel::kWidth, CompactPanel::kHeight);
     patchbay.setBounds (0, 0, PatchbayView::kWidth, PatchbayView::kHeight);
+    mapEditor.setBounds (0, 0, MapEditorView::kWidth, MapEditorView::kHeight);
 }
 } // namespace swingers

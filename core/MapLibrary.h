@@ -43,6 +43,12 @@ public:
     juce::String uniqueId (const juce::String& base) const; // base, base-2, base-3...
     juce::Result importCubase (const juce::File& xml, juce::String& newId);
 
+    // Starting points for the map editor; neither is saved. newMap: id uniqueId("new-map"), name "New map", no
+    // notes. duplicate: id uniqueId(id + "-copy"), name "<name> (copy)", the same notes; an empty map (empty id)
+    // when `id` is unknown.
+    DrumMap newMap() const;
+    DrumMap duplicate (const juce::String& id) const;
+
 private:
     juce::File mapsDir() const { return root.getChildFile ("maps"); }
     juce::File pairsDir() const { return root.getChildFile ("pairs"); }

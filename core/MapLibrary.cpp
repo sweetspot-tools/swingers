@@ -261,6 +261,26 @@ juce::String MapLibrary::uniqueId (const juce::String& base) const
     }
 }
 
+DrumMap MapLibrary::newMap() const
+{
+    DrumMap map;
+    map.id = uniqueId ("new-map");
+    map.name = "New map";
+    return map;
+}
+
+DrumMap MapLibrary::duplicate (const juce::String& id) const
+{
+    const auto* source = find (id);
+    if (source == nullptr)
+        return {};
+
+    DrumMap copy = *source;
+    copy.id = uniqueId (id + "-copy");
+    copy.name = (source->name.isNotEmpty() ? source->name : source->id) + " (copy)";
+    return copy;
+}
+
 juce::Result MapLibrary::importCubase (const juce::File& xml, juce::String& newId)
 {
     if (! xml.existsAsFile())

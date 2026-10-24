@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CompactPanel.h"
+#include "MapEditorView.h"
 #include "PatchbayView.h"
 #include "PluginProcessor.h"
 #include "RackLookAndFeel.h"
@@ -21,6 +22,11 @@ public:
     void showPatchbay (bool show);
     bool isPatchbayShown() const { return patchbayShown; }
 
+    // true: the map editor (900 x 600) replaces the patchbay; false: back to the patchbay.
+    void showMapEditor (bool show);
+    bool isMapEditorShown() const { return mapEditorShown; }
+    MapEditorView& mapEditorView() { return mapEditor; }
+
     CompactPanel& compactPanel() { return compact; }
     PatchbayView& patchbayView() { return patchbay; }
 
@@ -36,9 +42,11 @@ private:
     WearLayer wearBackground { WearLayer::Layer::Background }; // behind everything
     CompactPanel compact;
     PatchbayView patchbay; // hidden until Edit mapping
+    MapEditorView mapEditor; // hidden until Edit maps
     WearLayer wearTape { WearLayer::Layer::Tape }; // above everything, clear of the controls
     juce::TooltipWindow tooltips { this, 600 };
     bool patchbayShown = false;
+    bool mapEditorShown = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SwingersEditor)
 };

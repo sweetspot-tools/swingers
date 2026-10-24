@@ -1,7 +1,8 @@
-// Renders the plugin editor to a PNG: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]]
+// Renders the plugin editor to a PNG: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor]
 // Uses a throw-away user root with one extra map and one broken file, so the lists show both.
 // --patchbay renders the "Edit mapping" view instead, with the preview's example: two user maps, one direct
 // cable (40 -> 33) and one disconnected note (37); --all-notes shows all 128 rows, --lit lights note 36.
+// --map-editor renders "Edit maps" on the preview's Metal Kit.
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
@@ -45,13 +46,13 @@ int main (int argc, char** argv)
 {
     if (argc < 2)
     {
-        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]]\n");
+        std::fprintf (stderr, "usage: swingers_render <output.png> [scale] [--patchbay [--all-notes] [--lit]] [--map-editor]\n");
         return 2;
     }
 
     juce::ScopedJuceInitialiser_GUI gui;
     float scale = 2.0f;
-    bool patchbay = false, allNotes = false, lit = false;
+    bool patchbay = false, allNotes = false, lit = false, mapEditor = false;
     for (int i = 2; i < argc; ++i)
     {
         const juce::String arg (argv[i]);
@@ -61,6 +62,8 @@ int main (int argc, char** argv)
             allNotes = true;
         else if (arg == "--lit")
             lit = true;
+        else if (arg == "--map-editor")
+            mapEditor = true;
         else
             scale = arg.getFloatValue();
     }
@@ -77,13 +80,17 @@ int main (int argc, char** argv)
         {
             swingers::MapLibrary writer (root);
             writer.saveMap (map);
-            if (patchbay)
+            if (patchbay || mapEditor)
                 writePatchbayMaps (writer);
         }
         root.getChildFile ("maps/broken.swmap.json").replaceWithText ("{ not json");
 
         swingers::SwingersProcessor processor (root);
-        if (patchbay)
+        if (mapEditor)
+        {
+            processor.selectMaps ("studio-kit", "metal-kit");
+        }
+        else if (patchbay)
         {
             processor.selectMaps ("studio-kit", "metal-kit");
             swingers::PairOverrides overrides;
@@ -113,7 +120,11 @@ int main (int argc, char** argv)
         juce::MidiBuffer midi;
         midi.addEvent (juce::MidiMessage::noteOn (10, 36, (juce::uint8) 100), 0);
 
-        if (patchbay && swingersEditor != nullptr)
+        if (mapEditor && swingersEditor != nullptr)
+        {
+            swingersEditor->showMapEditor (true);
+        }
+        else if (patchbay && swingersEditor != nullptr)
         {
             swingersEditor->showPatchbay (true);
             swingersEditor->patchbayView().setAllNotes (allNotes);
