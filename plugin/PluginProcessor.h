@@ -1,6 +1,12 @@
 #pragma once
 
+#include "LiveRemapper.h"
+#include "MapLibrary.h"
+#include "PluginState.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include <functional>
 
 namespace swingers
 {
@@ -9,7 +15,7 @@ namespace swingers
 class SwingersProcessor : public juce::AudioProcessor
 {
 public:
-    SwingersProcessor();
+    explicit SwingersProcessor (juce::File userRoot = MapLibrary::defaultUserRoot());
     ~SwingersProcessor() override = default;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -35,7 +41,28 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // Message thread only (as are selectMaps, setChannel, applyOverrides and setStateInformation).
+    MapLibrary& library() { return library_; }
+    LiveRemapper& remapper() { return remapper_; }
+    const ResolvedMaps& current() const { return current_; }
+
+    void selectMaps(const juce::String& fromId, const juce::String& toId);
+    void setChannel(int channel);
+    void applyOverrides(const PairOverrides&); // saves to the library and rebuilds the table
+
+    std::function<void()> onStateChanged; // editor refresh, called on the message thread
+
 private:
+    // Resolves the maps, rebuilds the table and hands it to the remapper. `forcedOverrides` replaces the
+    // resolved ones (used when saving them to the library failed).
+    void rebuild(const PairOverrides* forcedOverrides = nullptr, const juce::String& extraWarning = {});
+    void notifyChanged();
+
+    MapLibrary library_;
+    LiveRemapper remapper_;
+    PluginState state_;
+    ResolvedMaps current_;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SwingersProcessor)
 };
 

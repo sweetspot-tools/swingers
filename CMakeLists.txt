@@ -50,6 +50,7 @@ juce_add_binary_data(SwingersMaps SOURCES
     resources/maps/general-midi.swmap.json)
 
 target_sources(Swingers PRIVATE
+    plugin/PluginState.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(Swingers PRIVATE plugin)
@@ -85,6 +86,8 @@ target_sources(swingers_tests PRIVATE
     tests/test_live_remapper.cpp
     tests/test_file_converter.cpp
     tests/test_map_library.cpp
+    tests/test_plugin_state.cpp
+    plugin/PluginState.cpp
     plugin/PluginProcessor.cpp)
 
 target_include_directories(swingers_tests PRIVATE plugin)
