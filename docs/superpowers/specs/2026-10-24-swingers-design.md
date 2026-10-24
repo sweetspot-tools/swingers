@@ -33,7 +33,7 @@ riscrive da zero; dal prototipo si tiene solo l'idea del General MIDI come tappa
 
 - **Tecnologia: JUCE 8, licenza AGPL-3.0** (licenza gratuita di JUCE; il repo è a parte dai Fairy Tapes, che restano
   GPL-3.0 su VST3 SDK + VSTGUI). C++20, CMake. CLAP con `clap-juce-extensions`.
-- **Formati del plugin:** VST3 (Cubase, Reaper, Studio One, Bitwig, FL Studio), AU come MIDI FX (Logic), CLAP. Obiettivo:
+- **Formati del plugin:** VST3 (Cubase, Reaper, Studio One, Bitwig, FL Studio), AU come MIDI FX (Logic), CLAP (categorie `note-effect`, `utility`). Obiettivo:
   il maggior numero possibile di DAW.
 - **Standalone = lo stesso plugin** dentro l'app autonoma di JUCE, con in più la conversione di file.
 - **Modello di conversione:** il **GM è il pivot**. Ogni drum map dice, una volta sola, a quale voce GM corrisponde ogni

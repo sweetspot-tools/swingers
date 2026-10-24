@@ -85,7 +85,7 @@ target_link_libraries(Swingers
 
 clap_juce_extensions_plugin(TARGET Swingers
     CLAP_ID "com.sweetspot-tools.swingers"
-    CLAP_FEATURES utility)
+    CLAP_FEATURES note-effect utility)
 
 # Tests: the engine is plain C++, the smoke test also builds the processor.
 juce_add_console_app(swingers_tests
